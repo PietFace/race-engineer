@@ -1,0 +1,88 @@
+# Bouwt de Windows-installer en zet hem online.
+# Gebruik: tabblad "Actions" -> "Nieuwe versie maken" -> "Run workflow" -> versienummer invullen.
+name: Nieuwe versie maken
+
+on:
+  workflow_dispatch:
+    inputs:
+      versie:
+        description: "Versienummer (bijvoorbeeld 2.1.0)"
+        required: true
+        default: "2.0.0"
+      wat_is_nieuw:
+        description: "Wat is er nieuw? (komt op de downloadpagina)"
+        required: false
+        default: "Verbeteringen en reparaties."
+
+permissions:
+  contents: write
+
+jobs:
+  bouwen:
+    runs-on: windows-latest
+    env:
+      SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
+      SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+      VERSIE: ${{ inputs.versie }}
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v4
+
+      - name: Python installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Onderdelen installeren
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pywin32 comtypes
+          pip install SpeechRecognition pyaudio
+
+      - name: Versienummer instellen
+        shell: pwsh
+        run: |
+          $v = $env:VERSIE.Trim().TrimStart('v','V')
+          "SCHONE_VERSIE=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          python installer/set_version.py "$v" "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { throw "Ongeldig versienummer" }
+
+      - name: Programma bouwen
+        run: pyinstaller --noconfirm --clean RaceEngineer.spec
+
+      - name: Snelle controle
+        shell: pwsh
+        run: |
+          if (!(Test-Path dist/RaceEngineer/RaceEngineer.exe)) { throw "RaceEngineer.exe niet gevonden" }
+          Get-ChildItem dist/RaceEngineer | Measure-Object | Select-Object Count
+
+      - name: Inno Setup installeren
+        run: choco install innosetup -y --no-progress
+
+      - name: Installer maken
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=$env:SCHONE_VERSIE" installer\RaceEngineer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer bouwen mislukt" }
+
+      # Optioneel: digitaal ondertekenen (haalt de blauwe Windows-waarschuwing weg).
+      # Zet in Settings -> Secrets: SIGN_PFX_BASE64 en SIGN_PFX_PASSWORD. Zonder die geheimen wordt deze stap overgeslagen.
+      - name: Ondertekenen (optioneel)
+        if: env.SIGN_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:SIGN_PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -like "*x64*" } | Select-Object -Last 1
+          & $signtool.FullName sign /f cert.pfx /p $env:SIGN_PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 Output\RaceEngineer-Setup.exe
+          Remove-Item cert.pfx
+
+      - name: Online zetten
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.SCHONE_VERSIE }}
+          name: AI Race Engineer ${{ env.SCHONE_VERSIE }}
+          body: ${{ inputs.wat_is_nieuw }}
+          files: Output/RaceEngineer-Setup.exe
+          make_latest: true
