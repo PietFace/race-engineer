@@ -1,0 +1,9 @@
+pyirsdk
+PyYAML
+anthropic
+edge-tts
+pygame
+pyttsx3
+keyboard
+PySide6
+qrcode

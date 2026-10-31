@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+build/
+dist/
+Output/
+_bouw/
+venv/
+installer/file_version.txt
