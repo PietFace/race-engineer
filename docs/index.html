@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Race Engineer voor iRacing</title>
+<meta name="description" content="Een race engineer die tijdens het racen in iRacing met je praat: gaps, strategie, pitstops, spins en coaching per bocht.">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0F1216;--card:#171B21;--line:#262C35;--text:#E8EAED;--muted:#8A94A6;--acc:#FF8A00;--acc2:#FFB054;--good:#3DDC84}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",sans-serif;line-height:1.55}
+a{color:var(--acc2)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header{display:flex;align-items:center;gap:12px;padding:22px 0}
+header img{width:40px;height:40px}
+header b{font-size:18px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding:30px 0 50px}
+h1{font-size:clamp(32px,5vw,54px);line-height:1.08;font-weight:800;letter-spacing:-.02em}
+h1 span{color:var(--acc)}
+.lead{color:var(--muted);font-size:18px;margin:18px 0 28px;max-width:540px}
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--acc);color:#15100A;font-weight:800;text-decoration:none;padding:15px 26px;border-radius:12px;font-size:17px}
+.btn:hover{background:var(--acc2)}
+.meta{color:var(--muted);font-size:13px;margin-top:12px}
+.quote{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.quote p{padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.quote p:last-child{border:none}
+.quote b{color:var(--acc);font-size:11px;letter-spacing:1px;margin-right:8px}
+h2{font-size:28px;margin:10px 0 18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h3{font-size:16px;margin-bottom:6px}
+.card p{color:var(--muted);font-size:14px}
+.shots{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:30px 0 50px;align-items:start}
+.shots img{width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+.steps{counter-reset:s;display:grid;gap:10px;margin-bottom:50px}
+.steps li{list-style:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px 14px 56px;position:relative;color:var(--muted)}
+.steps li b{color:var(--text)}
+.steps li:before{counter-increment:s;content:counter(s);position:absolute;left:16px;top:13px;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#15100A;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+.note{background:#2A2112;border:1px solid #5C4313;color:var(--acc2);border-radius:12px;padding:12px 14px;font-size:14px}
+footer{color:var(--muted);font-size:13px;padding:30px 0 40px;border-top:1px solid var(--line);margin-top:40px}
+section{padding:10px 0 30px}
+@media(max-width:820px){.hero,.shots{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><img src="icon.png" alt=""><b>AI Race Engineer</b></header>
+
+<div class="hero">
+  <div>
+    <h1>Je eigen race engineer voor <span>iRacing</span>.</h1>
+    <p class="lead">Hij praat met je via je headset: wie er voor en achter je zit, wanneer je moet stoppen,
+      wat je per bocht kunt verbeteren en wat je moet doen na een spin. In het Nederlands.</p>
+    <a class="btn" id="dl" href="#">⬇ Download voor Windows</a>
+    <div class="meta" id="meta">Gratis · Windows 10/11 · nieuwste versie wordt opgehaald…</div>
+  </div>
+  <div class="quote">
+    <p><b>ENGINEER</b>Voor je Jansen, 1,2. Je pakt 0,3 per ronde, over 4 ronden zit je erop.</p>
+    <p><b>ENGINEER</b>Safety car! Advies: stoppen zodra de pits open zijn.</p>
+    <p><b>ENGINEER</b>Pitstop staat klaar: 28 liter, vier nieuwe banden.</p>
+    <p><b>ENGINEER</b>Bocht 5: 15 meter te vroeg geremd, 0,38 verloren. Rem later.</p>
+    <p><b>ENGINEER</b>Spin. Wacht! Bos komt nu langs… Vrij. Je kunt gaan.</p>
+  </div>
+</div>
+
+<section>
+<h2>Wat hij doet</h2>
+<div class="grid">
+  <div class="card"><h3>Gevechten</h3><p>Gap en trend naar de auto voor en achter je, waarschuwing als iemand dichtbij komt, en iRating en licentie van je tegenstanders.</p></div>
+  <div class="card"><h3>Strategie</h3><p>Brandstof per ronde, pitvenster, waar je terugkomt na een stop. Hij zet je pitstop zelf klaar in iRacing.</p></div>
+  <div class="card"><h3>Coaching per bocht</h3><p>Rempunt, bochtsnelheid en gas t.o.v. je beste ronde. Herkent onder- en overstuur, met setup-tips.</p></div>
+  <div class="card"><h3>Spins &amp; vlaggen</h3><p>Herkent spins, waarschuwt voor verkeer, safety car met pit-advies, gele, blauwe en zwarte vlag.</p></div>
+  <div class="card"><h3>Nieuwe baan leren</h3><p>Op een onbekende baan zegt hij vóór elke bocht hoe hard je remt en in welke versnelling.</p></div>
+  <div class="card"><h3>Tweede scherm</h3><p>Live dashboard op je telefoon of iPad naast je stuur. Gewoon een QR-code scannen.</p></div>
+</div>
+</section>
+
+<div class="shots">
+  <img src="race.png" alt="Het programma tijdens een race met safety car">
+  <img src="telefoon.png" alt="Het dashboard op een telefoon">
+</div>
+
+<section>
+<h2>Installeren</h2>
+<ol class="steps">
+  <li><b>Download</b> het bestand met de oranje knop hierboven.</li>
+  <li><b>Dubbelklik</b> op <i>RaceEngineer-Setup.exe</i>. Zie je een blauw scherm "Windows heeft uw pc beschermd"? Klik op <b>Meer info</b> en dan <b>Toch uitvoeren</b>.</li>
+  <li><b>Volg de stappen</b> en klik op Voltooien. Het programma start vanzelf.</li>
+  <li><b>Vul je naam in</b> bij Instellingen en klik op <b>Testrace</b> om alles uit te proberen.</li>
+  <li><b>Start iRacing</b> en stap in de auto. De engineer meldt zich vanzelf: "Radio check."</li>
+</ol>
+<p class="note">Voor de slimste functies (race-updates in eigen woorden, vragen stellen met je stem, nabespreking) heb je een eigen
+  Claude API-sleutel nodig van <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. Zonder sleutel werkt al het andere ook.</p>
+</section>
+
+<footer>AI Race Engineer is een onafhankelijk hobbyproject en is niet verbonden aan iRacing.com Motorsport Simulations.
+  · <a id="all" href="#">Alle versies</a></footer>
+</div>
+<script>
+// De pagina zoekt zelf uit bij welke GitHub-repository hij hoort (gebruiker.github.io/repository)
+// en haalt daar de nieuwste versie op. Je hoeft hier niets aan te veranderen.
+(function(){
+  var REPO = "";  // alleen invullen als de pagina NIET op github.io staat, bv. "frankp/race-engineer"
+  if(!REPO){
+    var h = location.hostname, p = location.pathname.split("/").filter(Boolean);
+    if(h.endsWith(".github.io") && p.length) REPO = h.split(".")[0] + "/" + p[0];
+  }
+  var dl = document.getElementById("dl"), meta = document.getElementById("meta"), all = document.getElementById("all");
+  if(!REPO){ meta.textContent = "Downloadlink nog niet ingesteld (zie stappenplan)."; return; }
+  var base = "https://github.com/" + REPO + "/releases";
+  dl.href = base + "/latest/download/RaceEngineer-Setup.exe";
+  all.href = base;
+  fetch("https://api.github.com/repos/" + REPO + "/releases/latest").then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if(!d){ meta.textContent = "Gratis · Windows 10/11 · nog geen versie gepubliceerd"; return; }
+    var a = (d.assets||[]).find(function(x){ return /Setup\.exe$/i.test(x.name); });
+    var mb = a ? " · " + Math.round(a.size/1048576) + " MB" : "";
+    var dt = new Date(d.published_at).toLocaleDateString("nl-NL", {day:"numeric", month:"long", year:"numeric"});
+    meta.textContent = "Gratis · Windows 10/11 · versie " + d.tag_name.replace(/^v/i,"") + " · " + dt + mb;
+  }).catch(function(){ meta.textContent = "Gratis · Windows 10/11"; });
+})();
+</script>
+</body>
+</html>
