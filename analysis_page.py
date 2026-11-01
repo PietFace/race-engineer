@@ -166,6 +166,8 @@ class AnalysisPage(QWidget):
         bv.addLayout(self.bal_grid)
         self.bal_hint = lab("Na een paar schone ronden zie je hier per bocht of de auto onderstuurt of overstuurt.", "sub", wrap=True)
         bv.addWidget(self.bal_hint)
+        self.setup_line = lab("", "sub", wrap=True)
+        bv.addWidget(self.setup_line)
         root.addWidget(bal)
         self.lap_box.currentIndexChanged.connect(self.redraw)
         self.corner_box.currentIndexChanged.connect(self.redraw)
@@ -234,6 +236,15 @@ class AnalysisPage(QWidget):
             w = self.bal_grid.takeAt(0).widget()
             if w:
                 w.deleteLater()
+        su = getattr(self.win.engine, "setup", None)
+        kv = su.key_values() if su else []
+        txt = ("Jouw setup: " + "  ·  ".join(f"{k} {v}" for k, v in kv)) if kv else ""
+        if su and su.changes:
+            ch = su.changes[-1]
+            txt += ("\n" if txt else "") + "Laatste wijziging (ronde %s): " % ch["ronde"] + ", ".join(
+                f"{w['wat']} {w['van']} → {w['naar']}" for w in ch["wijzigingen"][:4])
+        self.setup_line.setText(txt)
+        self.setup_line.setVisible(bool(txt))
         bal = getattr(self.win.engine, "balance", None)
         if not bal or not bal.latest:
             self.bal_hint.show()

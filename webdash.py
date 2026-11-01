@@ -160,7 +160,8 @@ function side(d,ahead,pre){
   else if(tr!=null&&Math.abs(tr)>=0.05){
     if(ahead){[t,c]=tr<0?['je pakt '+sec(tr)+' s/ronde','var(--good)']:['loopt '+sec(tr)+' s/ronde weg','var(--bad)']}
     else{[t,c]=tr>0?['komt '+sec(tr)+' s/ronde dichterbij','var(--bad)']:['je loopt '+sec(tr)+' s/ronde weg','var(--good)']}
-  } else if(d.laatste){t='laatste ronde '+lapt(d.laatste)}
+  } else if(d.zones){t=d.zones}
+  else if(d.laatste){t='laatste ronde '+lapt(d.laatste)}
   $(pre+'_t').textContent=t;$(pre+'_t').style.color=c;
 }
 let fails=0;
@@ -173,7 +174,8 @@ async function tick(){
     let sub=!on?'engineer staat uit':(st.positie?(st.auto||''):'wachten op iRacing');
     const w=st.weer||{};if(w.baantemp!=null)sub+=' · baan '+Math.round(w.baantemp)+'°'+(w.baan?' · '+w.baan:'');
     $('sub').textContent=sub;
-    const flag=st.incident_actief?["#FF5A5F","#fff","SPIN · KIJK UIT VOOR VERKEER"]:FLAGS[st.vlag];
+    const SPOT={2:"◀ AUTO LINKS",3:"AUTO RECHTS ▶",4:"◀ DRIE BREED ▶",5:"◀◀ TWEE LINKS",6:"TWEE RECHTS ▶▶"};
+    const flag=st.incident_actief?["#FF5A5F","#fff","SPIN · KIJK UIT VOOR VERKEER"]:(SPOT[st.spotter]?["#FF8A00","#15100A",SPOT[st.spotter]]:FLAGS[st.vlag]);
     if(flag&&on){$('flag').style.display='block';$('flag').style.background=flag[0];$('flag').style.color=flag[1];
       $('flag').textContent=flag[2]+(st.vlag==='safety car'?(st.pits_open?' · PITS OPEN':' · PITS DICHT'):'')}else $('flag').style.display='none';
     if(!st.positie){$('wait').style.display='flex';$('dash').style.display='none';

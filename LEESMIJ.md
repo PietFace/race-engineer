@@ -27,6 +27,11 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
 
 ## Tijdens de race
 
+- **Spotter**: "Links", "Rechts", "Drie breed, jij in het midden", "Vrij". Vooraf ingesproken, dus zonder vertraging.
+  Terwijl er iemand naast je zit, wacht de rest van de engineer even.
+- **Tegenstander per bocht** (ook met F6): "Jansen is sneller in bocht 5 en 6. Jij bent sneller in bocht 2.
+  Je beste kans: blijf dicht achter hem uit bocht 2 en val aan in bocht 3."
+
 - **Pitstop klaarzetten**: zodra het pitvenster open is zet hij de juiste hoeveelheid brandstof en de banden klaar
   in iRacing. Na zwaar contact (4x) zet hij fast repair klaar.
 - **Andere klassen**: "GTP komt eraan, 3 seconde. Laat ruimte."
@@ -38,6 +43,9 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
   niet per sector.)
 
 ## Training
+
+- **Setup**: hij leest je echte setup uit. Advies met jouw waarden ("rembalans naar 53,5 procent, nu 54,0").
+  Pas je de setup aan in de garage, dan meldt hij de wijziging en vertelt hij na een paar ronden of het geholpen heeft.
 
 - **Nieuwe baan leren**: na je eerste schone ronde zegt hij vóór elke bocht hoe hard je remt, in welke versnelling
   en hoe snel je door de top gaat.

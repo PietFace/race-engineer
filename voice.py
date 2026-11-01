@@ -7,7 +7,7 @@ import tempfile
 import threading
 import time
 
-MAX_AGE = {1: 10.0, 2: 12.0, 3: 4.0, 4: 20.0}   # seconden voordat een bericht vervalt
+MAX_AGE = {0: 2.0, 1: 10.0, 2: 12.0, 3: 4.0, 4: 20.0}   # seconden voordat een bericht vervalt
 
 
 class Voice:
@@ -22,6 +22,9 @@ class Voice:
         self.speaking = False
         self._sapi = None
         self._stop = False
+        self.hold_until = 0.0       # spotter actief: gewone berichten even wachten
+        self._clips = {}            # tekst -> bestand (vooraf gemaakt, voor de spotter)
+        self._sounds = {}
         self._init_engine()
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -68,6 +71,50 @@ class Voice:
             self.q.append((0, 0, 0, None))
             self.cv.notify()
 
+    # ------------------------------------------------------------
+    #  Spotter: korte vaste zinnen, vooraf ingesproken, direct afspelen
+    # ------------------------------------------------------------
+    def prewarm(self, phrases):
+        if self.engine != "edge":
+            return
+
+        def work():
+            import edge_tts
+            for ph in phrases:
+                if self._stop:
+                    return
+                path = os.path.join(self._tmpdir, f"clip_{abs(hash(ph))}.mp3")
+                try:
+                    comm = edge_tts.Communicate(ph, self.cfg.get("edge_voice", "nl-NL-MaartenNeural"),
+                                                rate=self.cfg.get("spotter_rate", "+25%"))
+                    asyncio.run(comm.save(path))
+                    self._clips[ph] = path
+                except Exception:
+                    pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def instant(self, text):
+        """Spotter-melding: zonder wachtrij, over de rest heen."""
+        path = self._clips.get(text)
+        if path and self.engine == "edge":
+            try:
+                snd = self._sounds.get(text)
+                if snd is None:
+                    snd = self._pygame.mixer.Sound(path)
+                    self._sounds[text] = snd
+                snd.set_volume(float(self.cfg.get("volume", 1.0)))
+                ch = self._pygame.mixer.Channel(7)
+                ch.stop()
+                ch.play(snd)
+                self.log(text, "spotter")
+                return
+            except Exception:
+                pass
+        self.say(text, 0)
+
+    def hold(self, seconds):
+        self.hold_until = max(self.hold_until, time.time() + seconds)
+
     def say(self, text, priority=2):
         if not text:
             return
@@ -88,12 +135,16 @@ class Voice:
                 while not self.q:
                     self.cv.wait()
                 prio, _, ts, text = heapq.heappop(self.q)
+                if text is not None and prio >= 2 and time.time() < self.hold_until:
+                    heapq.heappush(self.q, (prio, next(self.counter), ts, text))
+                    self.cv.wait(0.2)
+                    continue
             if self._stop or text is None:
                 return
             if time.time() - ts > MAX_AGE.get(prio, 10):
                 continue
             self.speaking = True
-            self.log(text, "radio")
+            self.log(text, "spotter" if prio == 0 else "radio")
             if prio <= 2:
                 self.last_text = text
             try:

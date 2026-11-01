@@ -3,7 +3,7 @@ import os
 import threading
 import time
 
-ACTIONS = ["race_update", "strategy", "gaps", "ask_question", "repeat", "setup_advice"]
+ACTIONS = ["race_update", "strategy", "gaps", "ask_question", "repeat", "setup_advice", "rival_compare"]
 ACTION_LABELS = {
     "race_update": "Race-update",
     "strategy": "Strategie",
@@ -11,6 +11,7 @@ ACTION_LABELS = {
     "ask_question": "Vraag stellen",
     "repeat": "Herhaal laatste",
     "setup_advice": "Setup-advies",
+    "rival_compare": "Tegenstander",
 }
 
 

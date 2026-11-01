@@ -64,7 +64,7 @@ QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
 QScrollBar::handle:vertical {{ background: {C['line']}; border-radius: 4px; min-height: 30px; }}
 QScrollBar::handle:vertical:hover {{ background: #3A424E; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical, QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ height: 0; background: none; }}
-#chip {{ background: {C['bg']}; border: 1px solid {C['line']}; border-radius: 6px; padding: 4px 8px; font-size: 12px; }}
+#chip {{ background: {C['bg']}; border: 1px solid {C['line']}; border-radius: 6px; padding: 3px 4px; font-size: 11px; }}
 #banner {{ background: #2A2112; border: 1px solid #5C4313; border-radius: 10px; color: {C['accent2']}; padding: 8px 12px; }}
 """
 
@@ -142,6 +142,8 @@ class RivalCard(QFrame):
                 txt, col = (f"je pakt {sec(tr)} s per ronde", C["good"]) if tr < 0 else (f"loopt {sec(tr)} s per ronde weg", C["bad"])
             else:
                 txt, col = (f"komt {sec(tr)} s per ronde dichterbij", C["bad"]) if tr > 0 else (f"je loopt {sec(tr)} s per ronde weg", C["good"])
+        elif d.get("zones"):
+            txt = d["zones"]
         elif d.get("laatste"):
             txt = f"laatste ronde {fmt_lap(d['laatste'])}"
         self.trend.setText(txt)
@@ -390,8 +392,11 @@ class RacePage(QWidget):
             "zwart": ("#000000", "#FFFFFF", "ZWARTE VLAG  ·  NAAR DE PITS"),
             "wit": ("#F2F2F2", "#111111", "LAATSTE RONDE"),
         }
+        spot = {2: "◀  AUTO LINKS", 3: "AUTO RECHTS  ▶", 4: "◀  DRIE BREED  ▶", 5: "◀◀  TWEE LINKS", 6: "TWEE RECHTS  ▶▶"}
         if st.get("incident_actief"):
             styles_key = ("#FF5A5F", "#FFFFFF", "SPIN  ·  KIJK UIT VOOR VERKEER")
+        elif st.get("spotter") in spot:
+            styles_key = ("#FF8A00", "#15100A", spot[st["spotter"]])
         else:
             styles_key = styles.get(flag)
         if not styles_key:
@@ -519,6 +524,21 @@ class SettingsPage(QWidget):
         f.addRow("", self.c_quiet)
         f.addRow("", self.c_summary)
 
+        # Spotter & tegenstander
+        g, f = self._group("Spotter, tegenstander en setup")
+        self.sp_on = QCheckBox("Spotter: meld auto's naast je (links, rechts, drie breed, vrij)")
+        self.sp_still = QCheckBox("Herhaal \"nog links/rechts\" als iemand lang naast je blijft")
+        self.rv_on = QCheckBox("Vertel waar de auto voor of achter je sneller is (per bocht)")
+        self.rv_every = QSpinBox()
+        self.rv_every.setRange(1, 20)
+        self.rv_every.setSuffix(" ronden")
+        self.su_on = QCheckBox("Setup uitlezen: wijzigingen melden en terugkoppelen of ze helpen")
+        f.addRow("", self.sp_on)
+        f.addRow("", self.sp_still)
+        f.addRow("", self.rv_on)
+        f.addRow("Tegenstander-update hooguit elke", self.rv_every)
+        f.addRow("", self.su_on)
+
         # Race-extra's
         g, f = self._group("Race-extra's")
         self.x_pit = QCheckBox("Pitstop automatisch klaarzetten (brandstof en banden)")
@@ -622,6 +642,11 @@ class SettingsPage(QWidget):
         self.c_quiet.setChecked(bool(co["quiet_when_battling"]))
         self.c_summary.setChecked(bool(co["lap_summary"]))
         self.p_auto.setChecked(bool(cfg.get("app", {}).get("autostart", True)))
+        self.sp_on.setChecked(bool(cfg.get("spotter", {}).get("enabled", True)))
+        self.sp_still.setChecked(bool(cfg.get("spotter", {}).get("still_there", True)))
+        self.rv_on.setChecked(bool(cfg.get("rival", {}).get("enabled", True)))
+        self.rv_every.setValue(int(cfg.get("rival", {}).get("every_laps", 3)))
+        self.su_on.setChecked(bool(cfg.get("setup", {}).get("enabled", True)))
         x = cfg.get("race_extras", {})
         self.x_pit.setChecked(bool(x.get("pit_auto", True)))
         self._set_combo(self.x_tyres, x.get("pit_tyres", "auto"))
@@ -667,6 +692,11 @@ class SettingsPage(QWidget):
         co["quiet_when_battling"] = self.c_quiet.isChecked()
         co["lap_summary"] = self.c_summary.isChecked()
         cfg.setdefault("app", {})["autostart"] = self.p_auto.isChecked()
+        cfg.setdefault("spotter", {})["enabled"] = self.sp_on.isChecked()
+        cfg["spotter"]["still_there"] = self.sp_still.isChecked()
+        cfg.setdefault("rival", {})["enabled"] = self.rv_on.isChecked()
+        cfg["rival"]["every_laps"] = self.rv_every.value()
+        cfg.setdefault("setup", {})["enabled"] = self.su_on.isChecked()
         x = cfg.setdefault("race_extras", {})
         x["pit_auto"] = self.x_pit.isChecked()
         x["pit_tyres"] = self.x_tyres.currentData()

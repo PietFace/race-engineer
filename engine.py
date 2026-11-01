@@ -12,6 +12,9 @@ from engineer import Engineer, P_RACE
 from incidents import IncidentWatcher
 from race_extras import RaceExtras
 from balance import BalanceAnalyser
+from spotter import Spotter
+from rival import RivalAnalyser
+from setup_watch import SetupWatcher
 from inputs import Listener
 from race_state import RaceState, fmt_lap
 import settings
@@ -112,6 +115,15 @@ class Engine:
         bal = BalanceAnalyser(cfg, state, coach)
         eng.balance = bal
         self.balance = bal
+        spot = Spotter(cfg, state, voice)
+        self.spotter = spot
+        rival = RivalAnalyser(cfg, state, coach)
+        eng.rival = rival
+        self.rival = rival
+        setup = SetupWatcher(cfg, state, bal)
+        bal.setup = setup
+        eng.setup = setup
+        self.setup = setup
         self.state, self.eng, self.strat, self.coach = state, eng, strat, coach
 
         lap_log = []
@@ -146,9 +158,12 @@ class Engine:
             eng.quiet = incw.active is not None
             msgs += extras.update(src, events)
             bal.update(src)
+            spot.update(src)
             for ev in events:
                 if ev[0] == "player_lap":
                     msgs += bal.lap_completed(ev[3])
+                    msgs += rival.on_lap(ev[1])
+            msgs += setup.update(src, events)
             if getattr(incw, "just_finished", False):
                 incw.just_finished = False
                 eng.gap_hist.clear()   # trends opnieuw opbouwen na een spin
@@ -192,6 +207,17 @@ class Engine:
                     voice.repeat()
                 elif act == "gaps":
                     voice.say(eng.gaps_now(), 1)
+                elif act == "rival_compare":
+                    ahead, behind = state.neighbours()
+                    said = False
+                    for car, is_ahead in ((ahead, True), (behind, False)):
+                        res = rival.compare(car) if car else None
+                        if res:
+                            voice.say(rival.advice(res, is_ahead), 1)
+                            said = True
+                            break
+                    if not said:
+                        voice.say("Ik heb nog minstens één schone ronde van jou en je tegenstander nodig.", 1)
                 elif act == "strategy":
                     voice.say(eng.strategy_now(), 1)
                 elif act == "setup_advice":
@@ -200,7 +226,7 @@ class Engine:
                         if not issues:
                             return "Ik zie nog geen duidelijk onder- of overstuur. Rij een paar schone ronden, dan kijk ik opnieuw."
                         i = issues[0]
-                        return f"Grootste punt: {i['balans']} bij het {i['fase']} van bocht {i['bocht']}. {i['standaard_tip']}"
+                        return f"Grootste punt: {i['balans']} bij het {i['fase']} van bocht {i['bocht']}. {i['tip']}"
                     ai.run_async(lambda: ai.setup_advice(eng.snapshot()), speak_cb(1), fallback=rules_advice)
                 elif act == "race_update":
                     ai.run_async(lambda: ai.race_update(eng.snapshot()), speak_cb(1), fallback=eng.full_update_rules)
@@ -265,7 +291,8 @@ class Engine:
                 return None
             g = s.gap_to(c)
             return {"naam": c.name, "nr": c.number, "gap": g, "trend": eng._trend(c),
-                    "pit": c.on_pit, "laatste": c.last_lap}
+                    "pit": c.on_pit, "laatste": c.last_lap,
+                    "zones": self.rival.short(c) if getattr(self, "rival", None) else None}
         plan = strat.plan()
         left = strat.my_laps_remaining()
         lap_now = (me.wraps or 0) + 1
@@ -282,6 +309,8 @@ class Engine:
             "venster": (plan.get("pitvenster_open_ronde"), plan.get("pitvenster_sluit_ronde")),
             "in_pit": me.on_pit, "incidenten": s.incidents,
             "bochten": dict(self.coach.last_lap_deltas),
+            "setup": self.setup.key_values() if getattr(self, "setup", None) else [],
+            "spotter": self.spotter.reported if getattr(self, "spotter", None) else 1,
             "limiet": self.incw.limit,
             "irating": self.extras.ir_est,
             "safety_car": self.extras.in_caution,

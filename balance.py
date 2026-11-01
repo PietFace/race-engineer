@@ -31,6 +31,8 @@ class BalanceAnalyser:
         self.reported = {}         # (bocht, fase, label) -> ronde waarin gemeld
         self.baselines = []
         self.latest = {}           # (bocht, fase) -> {label, ratio, tegensturen}
+        self.clean_laps_since_reset = 0
+        self.setup = None          # SetupWatcher (voor concrete waarden)
 
     def update(self, src):
         me = self.s.player()
@@ -57,6 +59,7 @@ class BalanceAnalyser:
         if len(mod) < 20:
             return []
         self.baselines = (self.baselines + [statistics.median(mod)])[-4:]
+        self.clean_laps_since_reset += 1
         base = statistics.median(self.baselines)
         lap_nr = (self.done_lap or 0) + 1
         found = {}
@@ -92,10 +95,37 @@ class BalanceAnalyser:
             self.reported[(nr, phase, label)] = lap_nr
             txt = f"Balans: {label} {PHASE_NL[phase]} bocht {nr}."
             if self.cfg.get("advice", True):
-                txt += " " + ADVICE[(label, phase)]
+                txt += " " + self.advice_text(label, phase)
             out.append((4, txt))
             break  # max één balansmelding per ronde
         return out
+
+    def advice_text(self, label, phase):
+        generic = ADVICE[(label, phase)]
+        tips = self.setup.concrete(label, phase) if self.setup else []
+        if not tips:
+            return generic
+        technique = generic.split("Rijtechniek:")[-1].strip() if "Rijtechniek:" in generic else ""
+        txt = "Probeer: " + ", of ".join(tips) + "."
+        if technique:
+            txt += " Rijtechniek: " + technique
+        return txt
+
+    def issue_map(self):
+        """Huidige duidelijke problemen: {(bocht, fase): label}"""
+        out = {}
+        for key, h in self.history.items():
+            for label in ("onderstuur", "overstuur"):
+                if h.count(label) >= 2:
+                    out[key] = label
+        return out
+
+    def reset_history(self):
+        self.history = {}
+        self.reported = {}
+        self.latest = {}
+        self.baselines = []
+        self.clean_laps_since_reset = 0
 
     def summary(self):
         issues = []
@@ -103,5 +133,5 @@ class BalanceAnalyser:
             for label in ("onderstuur", "overstuur"):
                 if h.count(label) >= 2:
                     issues.append({"bocht": nr, "fase": "insturen" if phase == "in" else "uitkomen",
-                                   "balans": label, "standaard_tip": ADVICE[(label, phase)]})
+                                   "balans": label, "tip": self.advice_text(label, phase)})
         return {"balans_problemen": issues}

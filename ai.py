@@ -12,7 +12,10 @@ Regels:
 - Geef bij strategie een duidelijk advies (bijv. wanneer stoppen, wel/niet zuinig rijden, undercut kans) met de reden in een paar woorden.
 - Belangrijkste eerst: gevaar/actie > positie en gaps > tempo > brandstof.
 - In de data staan ook incidenten (spins, van de baan, incidentpunten en de limiet). Gebruik die als het relevant is,
-  bijv. herhaalde fouten in dezelfde bocht of als de coureur dicht bij de incidentlimiet zit."""
+  bijv. herhaalde fouten in dezelfde bocht of als de coureur dicht bij de incidentlimiet zit.
+- 'tegenstander_per_bocht' zegt per bocht hoeveel de auto voor/achter sneller (positief) of langzamer is. Gebruik dat
+  voor concreet aanvals- of verdedigingsadvies.
+- 'setup' bevat de echte instellingen van de auto. Noem bij setup-advies de huidige waarde en de nieuwe waarde."""
 
 
 class AI:
@@ -77,8 +80,9 @@ class AI:
 
     def setup_advice(self, snapshot):
         return self._ask("De coureur vraagt om setup-advies. Gebruik 'auto_balans' (onder/overstuur per bocht en fase), "
-                         "de auto en de baan. Noem het belangrijkste probleem en maximaal twee concrete setup-wijzigingen "
-                         "die in deze auto in iRacing instelbaar zijn, plus één rijtechniek-tip. Wees eerlijk als de data "
+                         "'setup' (de echte huidige instellingen en eerdere wijzigingen met hun effect), de auto en de baan. "
+                         "Noem het belangrijkste probleem en maximaal twee concrete wijzigingen met huidige en nieuwe waarde "
+                         "(alleen instellingen die in 'setup' voorkomen), plus één rijtechniek-tip. Wees eerlijk als de data "
                          "te dun is. Maximaal 5 zinnen.\n\n" + json.dumps(snapshot, ensure_ascii=False), max_tokens=400)
 
     def debrief(self, snapshot, laps_log):

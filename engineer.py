@@ -32,6 +32,8 @@ class Engineer:
         self.incidents = None       # IncidentWatcher, gezet door de motor
         self.extras = None          # RaceExtras, gezet door de motor
         self.balance = None         # BalanceAnalyser, gezet door de motor
+        self.rival = None
+        self.setup = None
 
     # ------------------------------------------------------------
     def handle_events(self, events):
@@ -434,5 +436,7 @@ class Engineer:
             "incidenten": self.incidents.summary() if self.incidents else None,
             "race_extra": self.extras.summary() if self.extras else None,
             "auto_balans": self.balance.summary() if self.balance else None,
+            "tegenstander_per_bocht": self.rival.summary_now() if self.rival else None,
+            "setup": self.setup.summary() if self.setup else None,
             "safety_car_of_geel": s.caution,
         }

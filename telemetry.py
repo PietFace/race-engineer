@@ -149,6 +149,11 @@ class MockSource:
         self.cars[PLAYER].fuel = 40.0
         self.cars[PLAYER].fpl = 2.9
         self._new_lap_var(self.cars[PLAYER])
+        # eigen rijstijl voor een paar tegenstanders (voor de vergelijking per bocht)
+        z = (0.0, 0.0, 0.0)
+        self.cars[8].var = [z, z, z, z, (6, 2.5, -15), (6, 2.0, -10), z]          # Bos: sterk in bocht 5 en 6
+        self.cars[11].var = [z, (0, 1.5, -25), (4, 1.5, -20), z, (-6, -1.5, 15), z, z]   # Van Dijk: sterk in 2 en 3
+        self.cars[9].var = [(5, 2.0, -10), z, z, z, z, z, (-5, -1.5, 10)]        # Kok: sterk in bocht 1
         self.speed = self.brake = 0.0
         self.throttle = 1.0
         self.gear = 1
@@ -177,6 +182,15 @@ class MockSource:
         self.driver_inc[1] = 9    # Jansen is een brokkenpiloot
         self._cache_t = None
         self._cache = {}
+        self.setup = {
+            "UpdateCount": 1,
+            "TiresAero": {"LeftFront": {"StartingPressure": "165.5 kPa", "LastHotPressure": "172.0 kPa", "TreadRemaining": "100%"},
+                          "AeroBalanceCalc": {"FrontRhAtSpeed": "52.0 mm"}, "RearWing": {"WingSetting": "7"}},
+            "Chassis": {"Front": {"ArbBlades": "4", "BrakePressureBias": "54.0%", "CrossWeight": "50.0%"},
+                        "Rear": {"ArbBlades": "3", "RideHeight": "68.0 mm"},
+                        "InCarDials": {"TractionControlSetting": "4 (TC)", "AbsSetting": "6 (ABS)"}},
+        }
+        self.setup_changed = False
 
     def _new_lap_var(self, car):
         car.var = [(random.gauss(0, 7), random.gauss(0, 1.0), random.gauss(0, 12)) for _ in CORNERS]
@@ -260,7 +274,7 @@ class MockSource:
             d = car.dist % TRACK_LEN
             if car.idx == PLAYER and self._player_event(car, d, dt):
                 continue
-            v, b, th, w, ci, phase = _profile(d, car.var if car.idx == PLAYER else None)
+            v, b, th, w, ci, phase = _profile(d, car.var)
             v *= car.pace * slow
             if car.dist < 0:
                 v = min(v, 35.0)
@@ -283,6 +297,12 @@ class MockSource:
                 if self.practice:
                     if car.idx == PLAYER and car.lap >= self.race_laps:
                         self.finished = True
+                    if car.idx == PLAYER and car.lap == 5 and not self.setup_changed:
+                        self.setup_changed = True
+                        self.setup["Chassis"]["Front"]["ArbBlades"] = "3"
+                        self.setup["Chassis"]["Front"]["BrakePressureBias"] = "53.5%"
+                        self.setup["UpdateCount"] = 2
+                        self.session_info_update += 1
                     continue
                 if self.checkered or car.lap >= self.race_laps:
                     self.checkered = True
@@ -306,8 +326,8 @@ class MockSource:
         lat = 16.0 * w
         yaw = lat / v
         steer = WHEELBASE_RATIO * yaw / v * (1 + 0.0035 * lat)   # klein beetje natuurlijk onderstuur
-        if ci == 4 and phase == "in":
-            steer *= 1.5           # onderstuur bij insturen bocht 5
+        if ci == 4 and phase == "in" and not self.setup_changed:
+            steer *= 1.5           # onderstuur bij insturen bocht 5 (weg na setup-wijziging)
         if ci == 1 and phase == "out" and w > 0.2:
             steer = -0.25 * steer  # tegensturen: overstuur uitgang bocht 2
             yaw *= 1.2
@@ -376,7 +396,26 @@ class MockSource:
             for i, c in enumerate([c for c in order if c.cls == cls]):
                 cpos[c.idx] = i + 1
         lead = self._leader()
+        left = right = 0
+        if not p.on_pit and self.speed > 8:
+            for c in self.cars:
+                if c.idx == PLAYER or c.on_pit or c.done:
+                    continue
+                if abs(c.dist - p.dist) < 5.5:
+                    if c.idx % 2 == 0:
+                        left += 1
+                    else:
+                        right += 1
+        if left and right:
+            clr = 4
+        elif left:
+            clr = 5 if left > 1 else 2
+        elif right:
+            clr = 6 if right > 1 else 3
+        else:
+            clr = 1
         return {
+            "CarLeftRight": clr,
             "SessionTime": self.t,
             "SessionNum": 0,
             "SessionState": 5 if self.checkered else (4 if self.t >= 3 else 3),
@@ -444,6 +483,8 @@ class MockSource:
                              "CurDriverIncidentCount": self.driver_inc[i],
                              "CarIsPaceCar": 0, "IsSpectator": 0} for i, n in enumerate(NAMES)],
             }
+        if key == "CarSetup":
+            return self.setup
         if key == "WeekendInfo":
             return {"TrackDisplayName": "Testbaan", "TrackLength": f"{TRACK_LEN/1000:.2f} km",
                     "WeekendOptions": {"IncidentLimit": "17"}}
