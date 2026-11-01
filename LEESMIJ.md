@@ -56,7 +56,21 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
   en hoe snel je door de top gaat.
 - **Onder- en overstuur per bocht**, met een setup- en rijtechniek-tip. Met F7 (Setup-advies) en een API-sleutel
   krijg je advies dat past bij jouw auto.
-- **Analyse**: rem-, gas- en snelheidslijnen per bocht, jouw ronde tegen je beste ronde, en een balanstabel.
+- **Analyse**: rem-, gas-, snelheids- en stuurlijnen per bocht met markeringen waar je instuurt, de rem loslaat en
+  vol gas geeft; jouw ronde tegen je beste ronde of de snelste; een balanstabel en een rijtechniek-kaart.
+
+## Rijtechniek en lesplan (training)
+
+- **Rijtechniek zonder voorbeeld**: per bocht kijkt hij naar hoe snel je de rem opbouwt, ABS, trail braking
+  (hoe ver je de rem de bocht in meeneemt en hoe rustig je hem loslaat), stuuruitslag en stuurcorrecties,
+  tegensturen, rollen zonder gas en rem, gas en rem tegelijk, pompen op het gas, schakelen en force-feedback-clipping.
+- **Jij tegen jezelf**: "In bocht 1 was je 0,48 sneller als je minder stuur gaf en meer snelheid meenam."
+- **Lesplan**: na een paar schone ronden kiest hij het belangrijkste punt en oefen je één ding tegelijk.
+  Vlak voor die bocht een korte herinnering, daarna "goed zo" of "nog niet". 3 van de 4 goed: "Bocht 5 zit erin!"
+  en dan de volgende oefening. Na een spin laat hij je eerst even met rust.
+- **F5 (Rijtechniek)**: een volledige nabespreking van je rijtechniek op elk moment.
+- **Huiswerk**: na de sessie wat goed ging en waar je de volgende keer aan werkt. Dit wordt per auto en baan
+  bewaard, dus de volgende keer begint het lesplan met je huiswerk.
 
 ## Tweede scherm
 

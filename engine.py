@@ -16,6 +16,8 @@ from spotter import Spotter
 from rival import RivalAnalyser
 from setup_watch import SetupWatcher
 from reference import ReferenceLibrary
+from technique import Technique
+from lesson import LessonPlan
 from inputs import Listener
 from race_state import RaceState, fmt_lap
 import settings
@@ -72,6 +74,15 @@ class Engine:
             self.log(f"Fout: {e}")
             self.log(traceback.format_exc())
         finally:
+            try:
+                if getattr(self, "lessons", None) and self.technique.history:
+                    txt = self.lessons.session_debrief_rules()
+                    p = os.path.join(settings.logs_dir(), f"huiswerk_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt")
+                    with open(p, "w", encoding="utf-8") as f:
+                        f.write(txt)
+                    self.log("Huiswerk: " + txt, "debrief")
+            except Exception:
+                pass
             if self.voice:
                 self.voice.stop()
             self.running = False
@@ -127,6 +138,13 @@ class Engine:
         self.setup = setup
         lib = ReferenceLibrary(cfg, state, data_dir=settings.ref_lib_dir() if not mock else tempfile.mkdtemp(prefix="re_lib_"))
         self.library = lib
+        tech = Technique(cfg, state, coach)
+        lessons = LessonPlan(cfg, state, coach, tech,
+                             data_dir=settings.progress_dir() if not mock else tempfile.mkdtemp(prefix="re_les_"))
+        coach._balance = bal
+        eng.technique, eng.lessons = tech, lessons
+        self.technique, self.lessons = tech, lessons
+        was_incident = False
         self.state, self.eng, self.strat, self.coach = state, eng, strat, coach
 
         lap_log = []
@@ -156,9 +174,21 @@ class Engine:
             src.freeze()
             events = state.update(src)
             msgs = eng.handle_events(events)
+            for ev in events:
+                if ev[0] == "player_lap":
+                    lap_m = tech.lap_completed(ev[1], ev[2], ev[3])
+                    for nr in list(tech.history):
+                        tech.compare_self(nr)
+                    msgs += lessons.on_lap(lap_m, ev[3])
+            tech.update(src)
+            coach.focus_corner = lessons.focus["bocht"] if lessons.active() else None
             msgs += coach.update(src, None)
+            msgs += lessons.update(src["LapDist"] or 0, src["Speed"] or 0)
             msgs += incw.update(src, events)
             eng.quiet = incw.active is not None
+            if eng.quiet and not was_incident:
+                lessons.calm_down()
+            was_incident = eng.quiet
             msgs += extras.update(src, events)
             bal.update(src)
             msgs += lib.update(src)
@@ -237,6 +267,23 @@ class Engine:
                         i = issues[0]
                         return f"Grootste punt: {i['balans']} bij het {i['fase']} van bocht {i['bocht']}. {i['tip']}"
                     ai.run_async(lambda: ai.setup_advice(eng.snapshot()), speak_cb(1), fallback=rules_advice)
+                elif act == "technique_debrief":
+                    snapshot = {"rijtechniek": tech.summary(), "lesplan": lessons.summary(),
+                                "auto": state.car_name, "baan": state.track_name,
+                                "balans": bal.summary(), "setup": setup.summary().get("belangrijkste")}
+
+                    def save_tech(text):
+                        if not text:
+                            return
+                        try:
+                            p = os.path.join(settings.logs_dir(), f"rijtechniek_{stamp}.txt")
+                            with open(p, "w", encoding="utf-8") as f:
+                                f.write(text)
+                        except Exception:
+                            pass
+                        self.log(text, "debrief")
+                        voice.say(text, 1)
+                    ai.run_async(lambda: ai.technique_debrief(snapshot), save_tech, fallback=lessons.session_debrief_rules)
                 elif act == "race_update":
                     ai.run_async(lambda: ai.race_update(eng.snapshot()), speak_cb(1), fallback=eng.full_update_rules)
                 elif act == "ask_question":

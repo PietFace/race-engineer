@@ -218,7 +218,8 @@ class ReferenceLibrary:
             v[i] = (BIN_M / dt * 3.6) if dt and dt > 0 else None
         v = smooth(v, 2)
         lap = RefLap(rec.n)
-        lap.t, lap.v, lap.gear, lap.steer = [round(x, 3) for x in ts], [round(x, 1) if x else x for x in v], rec.gear, rec.steer
+        steer_deg = [round(x * 57.2958, 1) if x is not None else None for x in rec.steer]
+        lap.t, lap.v, lap.gear, lap.steer = [round(x, 3) for x in ts], [round(x, 1) if x else x for x in v], rec.gear, steer_deg
         drv = self.drivers.get(idx, {})
         lap.meta = {"tijd": round(lt, 3), "rijder": drv.get("naam", "?"), "irating": drv.get("irating", 0),
                     "auto": model, "baan": self.s.track_name, "sessie": self.s.session_type,

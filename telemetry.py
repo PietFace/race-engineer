@@ -81,8 +81,10 @@ def _profile(d, var=None):
     """Snelheid, rem, gas, bochtfactor (0..1), bocht-index en fase op afstand d."""
     v, brake, thr, w, ci, phase = VMAX, 0.0, 1.0, 0.0, None, None
     for i, (apex, vmin, blen, alen, _dir) in enumerate(CORNERS):
-        boff, voff, aoff = (var[i] if var else (0.0, 0.0, 0.0))
-        vm = vmin + voff
+        vv = var[i] if var else (0.0, 0.0, 0.0)
+        boff, voff, aoff = vv[0], vv[1], vv[2]
+        early = vv[3] if len(vv) > 3 else 0.0      # rem zoveel meter te vroeg los (geen trail braking)
+        vm = vmin + voff - early * 0.02
         bl = blen - boff  # positieve boff = later remmen
         al = alen + aoff
         for a in (apex - TRACK_LEN, apex, apex + TRACK_LEN):
@@ -91,7 +93,7 @@ def _profile(d, var=None):
                 f = -x / bl
                 vc = vm + (VMAX - vm) * f ** 0.8
                 if vc < v:
-                    v, brake, thr = vc, 0.25 + 0.7 * f, 0.0
+                    v, brake, thr = vc, (0.0 if early and x > -early else 0.25 + 0.7 * f), 0.0
                     w, ci, phase = max(0.0, 1 - f * 1.6), i, "in"
             elif 0 < x < al:
                 f = x / al
@@ -100,6 +102,15 @@ def _profile(d, var=None):
                     v, brake, thr = vc, 0.0, min(1.0, 0.25 + f * 1.2)
                     w, ci, phase = max(0.0, 1 - f * 1.5), i, "out"
     return v, brake, thr, w, ci, phase
+
+
+GEAR_EDGES = [0, 20, 30, 40, 52, 63, 80]
+
+
+def _rpm(v, g):
+    g = max(1, min(6, g or 1))
+    lo, hi = GEAR_EDGES[g - 1], GEAR_EDGES[g]
+    return 3500 + 4000 * max(0.0, min(1.0, (v - lo) / (hi - lo)))
 
 
 def _gear(v):
@@ -198,6 +209,12 @@ class MockSource:
 
     def _new_lap_var(self, car):
         car.var = [(random.gauss(0, 7), random.gauss(0, 1.0), random.gauss(0, 12)) for _ in CORNERS]
+        if car.idx == PLAYER:
+            # bocht 5: laat de rem vaak te vroeg los; dat wordt beter naarmate je meer ronden rijdt
+            p_early = max(0.1, 0.9 - 0.1 * max(0, car.lap))
+            if random.random() < p_early:
+                b, vo, a = car.var[4]
+                car.var[4] = (b, vo, a, 35.0)
 
     def check_connection(self):
         return True
@@ -431,6 +448,9 @@ class MockSource:
             "PlayerCarIdx": PLAYER,
             "Speed": self.speed,
             "Throttle": self.throttle,
+            "BrakeABSactive": self.brake > 0.92,
+            "RPM": _rpm(self.speed, self.gear),
+            "SteeringWheelPctTorque": min(1.0, abs(self.steer) * 2.2),
             "Brake": self.brake,
             "Gear": self.gear,
             "SteeringWheelAngle": self.steer,
@@ -481,6 +501,7 @@ class MockSource:
             return {
                 "DriverCarIdx": PLAYER,
                 "DriverCarFuelMaxLtr": 60.0,
+                "DriverCarSLShiftRPM": 7300.0,
                 "Drivers": [{"CarIdx": i, "UserName": n, "CarNumber": str(i * 7 + 3),
                              "CarClassID": 2 if i in GTP else 1,
                              "CarClassShortName": "GTP" if i in GTP else "GT3",

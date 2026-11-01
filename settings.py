@@ -21,16 +21,19 @@ DEFAULTS = {
     "balance": {"enabled": True, "speak": True, "advice": True, "understeer_ratio": 1.25},
     "buttons": {
         "keyboard": {"race_update": "f9", "strategy": "f10", "gaps": "f11", "ask_question": "f12", "repeat": "f8",
-                     "setup_advice": "f7", "rival_compare": "f6"},
+                     "setup_advice": "f7", "rival_compare": "f6",
+                     "technique_debrief": "f5"},
         "wheel": {"device_name_contains": "", "race_update": -1, "strategy": -1, "gaps": -1,
                   "ask_question": -1, "repeat": -1, "setup_advice": -1,
-                  "rival_compare": -1},
+                  "rival_compare": -1, "technique_debrief": -1},
     },
     "speech_input": {"enabled": True, "language": "nl-NL", "listen_seconds": 6},
     "race_extras": {"pit_auto": True, "pit_tyres": "auto", "tyre_min_laps": 8, "fast_repair": True,
                     "multiclass": True, "multiclass_warn_s": 3.0, "flags": True, "opponent_info": True,
                     "opponent_inc_warn": 8, "irating": True, "weather": True, "track_temp_step": 3.0},
     "reference": {"enabled": True},
+    "technique": {"enabled": True},
+    "lesson": {"enabled": True, "start_after_laps": 3, "max_laps": 10},
     "spotter": {"enabled": True, "still_there": True, "still_after": 4.0, "clear_delay": 0.45},
     "rival": {"enabled": True, "every_laps": 3, "min_zone_delta": 0.06},
     "setup": {"enabled": True, "announce": True, "eval_laps": 3},
@@ -67,6 +70,10 @@ def ref_dir():
 
 def ref_lib_dir():
     return os.path.join(data_dir(), "referentie_bibliotheek")
+
+
+def progress_dir():
+    return os.path.join(data_dir(), "voortgang")
 
 
 def config_path():

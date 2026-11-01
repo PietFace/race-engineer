@@ -18,9 +18,10 @@ class Lap:
         self.brake = [None] * nbins
         self.thr = [None] * nbins
         self.gear = [None] * nbins
+        self.steer = [None] * nbins   # graden
 
     def fill_gaps(self):
-        for arr in (self.t, self.v, self.brake, self.thr, self.gear):
+        for arr in (self.t, self.v, self.brake, self.thr, self.gear, self.steer):
             last = None
             for i in range(self.n):
                 if arr[i] is None:
@@ -39,13 +40,14 @@ class Lap:
         return sum(1 for x in self.t if x is not None) / self.n
 
     def to_dict(self):
-        return {"t": self.t, "v": self.v, "brake": self.brake, "thr": self.thr, "gear": self.gear}
+        return {"t": self.t, "v": self.v, "brake": self.brake, "thr": self.thr, "gear": self.gear, "steer": self.steer}
 
     @classmethod
     def from_dict(cls, d):
         lap = cls(len(d["t"]))
         lap.t, lap.v, lap.brake, lap.thr = d["t"], d["v"], d["brake"], d["thr"]
         lap.gear = d.get("gear") or [None] * lap.n
+        lap.steer = d.get("steer") or [None] * lap.n
         return lap
 
     def copy(self):
@@ -228,6 +230,9 @@ class Coach:
         self.cur.v[b] = (src["Speed"] or 0) * 3.6 if self.cur.v[b] is None else min(self.cur.v[b], (src["Speed"] or 0) * 3.6)
         self.cur.brake[b] = max(self.cur.brake[b] or 0, src["Brake"] or 0)
         self.cur.thr[b] = src["Throttle"] or 0
+        sw = src["SteeringWheelAngle"]
+        if sw is not None:
+            self.cur.steer[b] = round(sw * 57.2958, 1)
         g = src["Gear"]
         if g is not None and g > 0:
             self.cur.gear[b] = g if self.cur.gear[b] is None else min(self.cur.gear[b], g)
@@ -290,6 +295,9 @@ class Coach:
                 continue
             self.reported.add(c.nr)
             tip = self._analyse(c)
+            focus = getattr(self, "focus_corner", None)
+            if focus and c.nr != focus:
+                tip = None   # lesplan: alleen de bocht waar we aan werken
             if tip and not self.guide_active():   # tijdens de baan-uitleg niet ook nog tips
                 tips.append(tip)
         return tips

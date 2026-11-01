@@ -85,6 +85,17 @@ class AI:
                          "(alleen instellingen die in 'setup' voorkomen), plus één rijtechniek-tip. Wees eerlijk als de data "
                          "te dun is. Maximaal 5 zinnen.\n\n" + json.dumps(snapshot, ensure_ascii=False), max_tokens=400)
 
+    def technique_debrief(self, snapshot):
+        return self._ask("Je bent nu rijcoach. De coureur vraagt om een bespreking van zijn rijtechniek. Gebruik 'rijtechniek' "
+                         "(metingen per bocht: remopbouw, ABS, rem los voor de top, trail braking (rem_bij_instuur, trail_m), "
+                         "rollen, overlap, gas pompen, stuur bij vol gas, stuurcorrecties, tegensturen, schakelen, "
+                         "force-feedback-clipping; plus zelfvergelijking en constantheid), 'balans' en 'lesplan'. "
+                         "Geef: 1) het belangrijkste techniekpunt en waarom het tijd kost, 2) wat hij in zijn snelste doorgangen "
+                         "goed deed, 3) huiswerk: maximaal twee concrete oefenpunten voor de volgende sessie, met een "
+                         "eenvoudige oefening. Gebruik een externe focus (wat de auto/het pedaal doet, niet de spieren). "
+                         "Maximaal 8 zinnen, gewone taal.\n\n" + json.dumps(snapshot, ensure_ascii=False, default=str),
+                         max_tokens=700)
+
     def debrief(self, snapshot, laps_log):
         return self._ask("De race is voorbij. Schrijf een nabespreking van maximaal 12 zinnen: resultaat, tempo-ontwikkeling, "
                          "gevechten, strategie, en 3 concrete verbeterpunten (gebruik de coaching-data per bocht). "

@@ -34,6 +34,8 @@ class Engineer:
         self.balance = None         # BalanceAnalyser, gezet door de motor
         self.rival = None
         self.setup = None
+        self.technique = None
+        self.lessons = None
 
     # ------------------------------------------------------------
     def handle_events(self, events):
@@ -438,5 +440,7 @@ class Engineer:
             "auto_balans": self.balance.summary() if self.balance else None,
             "tegenstander_per_bocht": self.rival.summary_now() if self.rival else None,
             "setup": self.setup.summary() if self.setup else None,
+            "rijtechniek": self.technique.summary() if self.technique else None,
+            "lesplan": self.lessons.summary() if self.lessons else None,
             "safety_car_of_geel": s.caution,
         }

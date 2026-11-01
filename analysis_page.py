@@ -2,7 +2,7 @@
 plus de balans (onder/overstuur) per bocht."""
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
                                QSizePolicy, QVBoxLayout, QWidget)
 
 from coach import BIN_M
@@ -14,11 +14,12 @@ COL = {"bg": "#171B21", "grid": "#262C35", "text": "#8A94A6", "ref": "#FF8A00", 
 
 class TraceChart(QWidget):
     """Vier gestapelde grafieken over afstand: snelheid, gas, rem, tijdverschil."""
-    PANELS = [("SNELHEID km/u", "v", None), ("GAS %", "thr", (0, 100)), ("REM %", "brake", (0, 100)), ("VERSCHIL s", "delta", None)]
+    PANELS = [("SNELHEID km/u", "v", None), ("GAS %", "thr", (0, 100)), ("REM %", "brake", (0, 100)),
+              ("STUUR graden", "steer", None), ("VERSCHIL s", "delta", None)]
 
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(420)
+        self.setMinimumHeight(540)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.ref = None
         self.lap = None
@@ -26,6 +27,11 @@ class TraceChart(QWidget):
         self.corners = []
         self.ref_label = "beste"
         self.lap_label = "ronde"
+
+    def set_markers(self, marks):
+        """[(afstand_m, label, kleur)] verticale lijnen (bv. insturen, rem los)."""
+        self.marks = marks or []
+        self.update()
 
     def set_data(self, ref, lap, rng, corners, ref_label, lap_label):
         self.ref, self.lap, self.rng, self.corners = ref, lap, rng, corners
@@ -60,7 +66,8 @@ class TraceChart(QWidget):
         b = max(a + 2, min(b, base.n))
         W, H = self.width(), self.height()
         left, right, top, gap = 58, 14, 26, 10
-        ph = (H - top - 26 - gap * 3) / 4
+        np_ = len(self.PANELS)
+        ph = (H - top - 26 - gap * (np_ - 1)) / np_
         font = QFont()
         font.setPointSize(8)
         p.setFont(font)
@@ -75,6 +82,8 @@ class TraceChart(QWidget):
             p.setPen(QPen(QColor(COL["grid"]), 1))
             p.drawRect(rect)
             sr = self._series(self.ref, key, a, b) if key != "delta" else []
+            if key == "steer" and not any(x for x in sr if x):
+                sr = []   # geen stuurdata van deze referentie
             sl = self._series(self.lap, key, a, b)
             vals = [x for x in sr + sl if x is not None]
             if fixed:
@@ -121,6 +130,16 @@ class TraceChart(QWidget):
                 else:
                     p.setPen(QPen(QColor(COL["lap"]), 1.6))
                 p.drawPath(path(sl))
+        # markeringen insturen / rem los (bij één bocht)
+        if self.rng is not None and getattr(self, "marks", None):
+            for dist_m, label, colr in self.marks:
+                bi = dist_m / BIN_M
+                if a <= bi <= b:
+                    x = left + (W - left - right) * (bi - a) / max(1, b - a - 1)
+                    p.setPen(QPen(QColor(colr), 1, Qt.DashLine))
+                    p.drawLine(QPointF(x, top), QPointF(x, H - 26))
+                    p.setPen(QColor(colr))
+                    p.drawText(QRectF(x + 3, top + 2, 120, 14), Qt.AlignLeft, label)
         # bochtmarkeringen (alleen bij hele ronde)
         if self.rng is None or (b - a) > base.n * 0.6:
             p.setPen(QColor(COL["text"]))
@@ -138,7 +157,16 @@ class AnalysisPage(QWidget):
         super().__init__()
         self.win = win
         self._lab = lab
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        inner.setObjectName("page")
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+        root = QVBoxLayout(inner)
         root.setContentsMargins(24, 20, 24, 20)
         root.setSpacing(12)
         top = QHBoxLayout()
@@ -176,6 +204,13 @@ class AnalysisPage(QWidget):
         self.setup_line = lab("", "sub", wrap=True)
         bv.addWidget(self.setup_line)
         root.addWidget(bal)
+        tc = card()
+        tv = QVBoxLayout(tc)
+        tv.setContentsMargins(16, 12, 16, 12)
+        tv.addWidget(lab("RIJTECHNIEK · WAT ER BETER KAN EN WAT JE IN JE SNELSTE DOORGANGEN ANDERS DEED", "cap"))
+        self.tech_text = lab("Na een paar schone ronden zie je hier je remmen, trail braking, sturen en gas per bocht.", "sub", wrap=True)
+        tv.addWidget(self.tech_text)
+        root.addWidget(tc)
         libc = card()
         lv = QVBoxLayout(libc)
         lv.setContentsMargins(16, 12, 16, 12)
@@ -234,6 +269,7 @@ class AnalysisPage(QWidget):
         self.redraw()
         self._balance()
         self._library()
+        self._technique()
 
     def tick(self):
         coach = self._src()
@@ -263,7 +299,32 @@ class AnalysisPage(QWidget):
             ref_label = f"{coach.ext.meta.get('rijder', 'referentie')} {fmt_lap(coach.ext.lap_time)} (gas/rem onbekend)"
         else:
             ref_label = f"beste ronde {fmt_lap(coach.ref_time)}" if ref else ""
+        marks = []
+        tech = getattr(self.win.engine, "technique", None)
+        if cn is not None and tech and idx is not None and idx < len(laps):
+            nr_lap = laps[idx]["nr"]
+            row = next((r for r in tech.history.get(cn, []) if r.get("ronde") == nr_lap - 1 or r.get("ronde") == nr_lap), None)
+            if row:
+                if row.get("instuur_m") is not None:
+                    marks.append((row["instuur_m"], "insturen", "#3DDC84"))
+                if row.get("rem_los_m") is not None:
+                    marks.append((row["rem_los_m"], "rem los", "#FF5A5F"))
+                if row.get("vol_gas_m") is not None:
+                    marks.append((row["vol_gas_m"], "vol gas", "#FFB054"))
+        self.chart.set_markers(marks)
         self.chart.set_data(ref, lap, rng, coach.corners, ref_label, lap_label)
+
+    def _technique(self):
+        tech = getattr(self.win.engine, "technique", None)
+        if not tech or not tech.history:
+            return
+        f = tech.diagnose(getattr(self.win.engine, "balance", None))
+        lines = [x["uitleg"] for x in f[:4]]
+        lines += list(tech.self_compare.values())[:2]
+        les = getattr(self.win.engine, "lessons", None)
+        if les and les.focus:
+            lines.insert(0, f"Nu aan het oefenen: {les.focus['cue']} ({sum(les.results)} van {len(les.results)} goed)")
+        self.tech_text.setText("\n".join("• " + x for x in lines) if lines else "Geen opvallende punten. Netjes!")
 
     def _library(self):
         lib = getattr(self.win.engine, "library", None)

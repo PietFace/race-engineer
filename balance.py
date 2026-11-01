@@ -12,7 +12,7 @@ from coach import BIN_M
 PHASE_NL = {"in": "bij het insturen van", "uit": "bij het uitkomen van"}
 
 ADVICE = {
-    ("onderstuur", "in"): "Probeer de rembalans een klik naar achter, of de voorste stabilisator zachter. Rijtechniek: rem iets eerder los zodat de neus kan draaien.",
+    ("onderstuur", "in"): "Probeer de rembalans een klik naar achter, of de voorste stabilisator zachter. Rijtechniek: houd bij het insturen nog wat rem vast zodat de voorwielen grip houden, en stuur rustig in.",
     ("onderstuur", "uit"): "Probeer de voorste stabilisator zachter of de achterste stijver. Rijtechniek: wacht met vol gas tot je stuur bijna recht staat.",
     ("overstuur", "in"): "Probeer de rembalans een klik naar voren, of minder motorrem. Rijtechniek: rem rechter uit en laat de rem geleidelijker los.",
     ("overstuur", "uit"): "Probeer de tractiecontrole een stap hoger, of de achterste stabilisator zachter. Rijtechniek: rustiger op het gas tot de auto recht staat.",
