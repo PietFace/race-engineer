@@ -105,8 +105,8 @@ class ReferenceLibrary:
     def n_bins(self):
         return max(50, int((self.s.track_len_m or 4000) / BIN_M))
 
-    def path(self, model, track=None):
-        return os.path.join(self.dir, f"{slug(track or self.s.track_name)}__{slug(model)}.json")
+    def path(self, model, track=None, ai=False):
+        return os.path.join(self.dir, f"{slug(track or self.s.track_name)}__{slug(model)}{'__ai' if ai else ''}.json")
 
     # ------------------------------------------------------------
     def _read_drivers(self, src):
@@ -119,7 +119,7 @@ class ReferenceLibrary:
             model = d.get("CarScreenNameShort") or d.get("CarScreenName") or d.get("CarPath") or "auto"
             self.models[idx] = model
             name = re.sub(r"\d+$", "", str(d.get("UserName", ""))).strip()
-            self.drivers[idx] = {"naam": name, "irating": d.get("IRating") or 0}
+            self.drivers[idx] = {"naam": name, "irating": d.get("IRating") or 0, "ai": bool(d.get("CarIsAI"))}
             try:
                 est = float(d.get("CarClassEstLapTime") or 0)
                 if est > 0:
@@ -221,7 +221,9 @@ class ReferenceLibrary:
         steer_deg = [round(x * 57.2958, 1) if x is not None else None for x in rec.steer]
         lap.t, lap.v, lap.gear, lap.steer = [round(x, 3) for x in ts], [round(x, 1) if x else x for x in v], rec.gear, steer_deg
         drv = self.drivers.get(idx, {})
-        lap.meta = {"tijd": round(lt, 3), "rijder": drv.get("naam", "?"), "irating": drv.get("irating", 0),
+        is_ai = bool(drv.get("ai")) and idx != self.s.player_idx
+        lap.meta = {"tijd": round(lt, 3), "rijder": drv.get("naam", "?") + (" (AI)" if is_ai else ""),
+                    "irating": drv.get("irating", 0), "ai": is_ai,
                     "auto": model, "baan": self.s.track_name, "sessie": self.s.session_type,
                     "datum": datetime.date.today().isoformat(), "eigen": idx == self.s.player_idx,
                     "baantemp": getattr(self.s, "track_temp", None)}
@@ -231,46 +233,50 @@ class ReferenceLibrary:
         return self._maybe_save(model, lap)
 
     def _maybe_save(self, model, lap):
-        stored = self.get(model)
+        ai = bool(lap.meta.get("ai"))
+        stored = self.get(model, ai=ai)
         if stored is not None and stored.lap_time <= lap.lap_time:
             return []
         try:
-            with open(self.path(model), "w", encoding="utf-8") as f:
+            with open(self.path(model, ai=ai), "w", encoding="utf-8") as f:
                 json.dump(lap.to_dict(), f)
         except Exception:
             return []
-        self._cache[(slug(self.s.track_name), slug(model))] = lap
+        self._cache[(slug(self.s.track_name), slug(model), ai)] = lap
         self.saved.append((model, lap.lap_time, lap.meta["rijder"]))
         me_model = self.models.get(self.s.player_idx)
         if model == me_model and not lap.meta.get("eigen"):
-            self.changed = True
-            if self.announced:
-                return []
-            self.announced = True
-            from race_state import say_lap
-            return [(4, f"Nieuwe referentie voor deze auto: {lap.meta['rijder']}, {say_lap(lap.lap_time)}. "
-                        "Vanaf nu vergelijk ik je met die ronde.")]
+            self.changed = True   # de motor kiest en meldt de referentie
         return []
 
     # ------------------------------------------------------------
-    def get(self, model, track=None):
-        key = (slug(track or self.s.track_name), slug(model))
+    def get(self, model, track=None, ai=False):
+        key = (slug(track or self.s.track_name), slug(model), ai)
         if key in self._cache:
             return self._cache[key]
         try:
-            with open(self.path(model, track), encoding="utf-8") as f:
+            with open(self.path(model, track, ai), encoding="utf-8") as f:
                 lap = RefLap.from_dict(json.load(f))
         except Exception:
             lap = None
         self._cache[key] = lap
         return lap
 
-    def for_player(self):
+    def for_player(self, my_best=None):
+        """Welke referentie: een echte rijder die sneller is dan jij gaat voor. Is die er niet,
+        dan de snelste AI-ronde. Anders wat er is."""
         model = self.models.get(self.s.player_idx) or self.s.car_name
-        lap = self.get(model) if model else None
-        if lap is not None and lap.n != self.n_bins():
+        if not model:
             return None
-        return lap
+        ok = lambda l: l is not None and l.n == self.n_bins()
+        human, ai = self.get(model), self.get(model, ai=True)
+        human = human if ok(human) else None
+        ai = ai if ok(ai) else None
+        if human is not None and not human.meta.get("eigen") and (my_best is None or human.lap_time < my_best):
+            return human
+        if ai is not None:
+            return ai
+        return human
 
     def list_all(self):
         out = []

@@ -19,7 +19,7 @@ from reference import ReferenceLibrary
 from technique import Technique
 from lesson import LessonPlan
 from inputs import Listener
-from race_state import RaceState, fmt_lap
+from race_state import RaceState, fmt_lap, say_lap
 import settings
 from strategy import Strategy
 
@@ -145,6 +145,7 @@ class Engine:
         eng.technique, eng.lessons = tech, lessons
         self.technique, self.lessons = tech, lessons
         was_incident = False
+        last_ref_time = None
         self.state, self.eng, self.strat, self.coach = state, eng, strat, coach
 
         lap_log = []
@@ -192,11 +193,25 @@ class Engine:
             msgs += extras.update(src, events)
             bal.update(src)
             msgs += lib.update(src)
-            if lib.changed or (coach.ext is None and coach.nbins is not None and state.track_name):
+            if lib.changed or coach.ref_time != last_ref_time or (coach.ext is None and coach.nbins is not None and state.track_name):
                 lib.changed = False
-                ref = lib.for_player()
+                last_ref_time = coach.ref_time
+                ref = lib.for_player(coach.ref_time)
                 if ref is not None and ref is not coach.ext:
+                    prev = coach.ext
                     coach.set_ext(ref)
+                    who = ref.meta.get("rijder", "?")
+                    if ref.meta.get("eigen") or coach.ext is not ref or (prev is not None and prev.meta.get("rijder") == who):
+                        pass
+                    elif ref.meta.get("ai"):
+                        msgs.append((4, f"Nog geen snellere ronde van een echte rijder. Ik vergelijk je voorlopig met de AI: "
+                                        f"{who}, {say_lap(ref.lap_time)}."))
+                    elif prev is not None and prev.meta.get("ai"):
+                        msgs.append((4, f"Er is nu een snellere ronde van een echte rijder: {who}, "
+                                        f"{say_lap(ref.lap_time)}. Daar vergelijk ik je voortaan mee."))
+                    elif prev is None or prev.lap_time - ref.lap_time > 0.3:
+                        msgs.append((4, f"Nieuwe referentie voor deze auto: {who}, {say_lap(ref.lap_time)}. "
+                                        "Vanaf nu vergelijk ik je met die ronde."))
             spot.update(src)
             for ev in events:
                 if ev[0] == "player_lap":

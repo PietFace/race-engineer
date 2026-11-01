@@ -48,6 +48,8 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
   op je pc (ook van auto's die je die dag niet zelf rijdt). Daarna coacht hij je tegen die ronde:
   "Bocht 5: de snelste remt 20 meter later, hij gaat 7 km/u sneller door de top. 0,48 verloren."
   Van andere rijders zijn snelheid, versnelling en stuurhoek bekend; gas en rem niet.
+  AI-ronden (uit AI-races) worden apart bewaard. Is er geen ronde van een echte rijder die sneller is dan jij,
+  dan vergelijkt hij je met de snelste AI-ronde. Zodra een echte rijder sneller is dan jouw beste ronde, gaat die voor.
 
 - **Setup**: hij leest je echte setup uit. Advies met jouw waarden ("rembalans naar 53,5 procent, nu 54,0").
   Pas je de setup aan in de garage, dan meldt hij de wijziging en vertelt hij na een paar ronden of het geholpen heeft.

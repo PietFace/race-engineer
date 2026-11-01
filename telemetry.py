@@ -1,3 +1,4 @@
+import os
 """Telemetrie-bron: echte iRacing (via pyirsdk) of een testsimulator.
 
 Beide bronnen gedragen zich hetzelfde: src[naam] geeft een waarde terug,
@@ -509,7 +510,9 @@ class MockSource:
                              "CarScreenNameShort": "Porsche 963 GTP" if i in GTP else ("Ferrari 296 GT3" if i in (1, 3, 5) else "McLaren 720S GT3 EVO"),
                              "IRating": IRATINGS[i], "LicString": "A 4.12" if IRATINGS[i] > 3000 else "B 3.20",
                              "CurDriverIncidentCount": self.driver_inc[i],
-                             "CarIsPaceCar": 0, "IsSpectator": 0} for i, n in enumerate(NAMES)],
+                             "CarIsPaceCar": 0, "IsSpectator": 0,
+                             "CarIsAI": 1 if (os.environ.get("RE_MOCK_AI") and i != PLAYER and (i % 2 == 0 or os.environ.get("RE_MOCK_AI") == "alle")) else 0}
+                            for i, n in enumerate(NAMES)],
             }
         if key == "CarSetup":
             return self.setup
