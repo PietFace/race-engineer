@@ -15,6 +15,7 @@ from balance import BalanceAnalyser
 from spotter import Spotter
 from rival import RivalAnalyser
 from setup_watch import SetupWatcher
+from reference import ReferenceLibrary
 from inputs import Listener
 from race_state import RaceState, fmt_lap
 import settings
@@ -124,6 +125,8 @@ class Engine:
         bal.setup = setup
         eng.setup = setup
         self.setup = setup
+        lib = ReferenceLibrary(cfg, state, data_dir=settings.ref_lib_dir() if not mock else tempfile.mkdtemp(prefix="re_lib_"))
+        self.library = lib
         self.state, self.eng, self.strat, self.coach = state, eng, strat, coach
 
         lap_log = []
@@ -158,6 +161,12 @@ class Engine:
             eng.quiet = incw.active is not None
             msgs += extras.update(src, events)
             bal.update(src)
+            msgs += lib.update(src)
+            if lib.changed or (coach.ext is None and coach.nbins is not None and state.track_name):
+                lib.changed = False
+                ref = lib.for_player()
+                if ref is not None and ref is not coach.ext:
+                    coach.set_ext(ref)
             spot.update(src)
             for ev in events:
                 if ev[0] == "player_lap":

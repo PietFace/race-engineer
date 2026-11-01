@@ -79,6 +79,8 @@ class Coach:
         self.last_lap_deltas = {}
         self.key = None
         self.laps = []              # laatste ronden voor de grafieken
+        self.ext = None             # referentie van een snellere rijder (reference.RefLap)
+        self.corners_from_ext = False
         self.new_track = False
         self.guide_laps = 0
         self.guided = set()
@@ -114,6 +116,30 @@ class Coach:
                 json.dump({"time": self.ref_time, "lap": self.ref.to_dict()}, f)
         except Exception:
             pass
+
+    def set_ext(self, lap):
+        """Referentieronde van een snellere rijder (uit de bibliotheek)."""
+        if lap is not None and self.nbins is not None and lap.n != self.nbins:
+            return
+        self.ext = lap
+        if lap is not None and not self.corners:
+            self._corners_from_ext()
+
+    def use_ext(self):
+        return self.ext is not None and (self.ref_time is None or self.ext.lap_time < self.ref_time - 0.05)
+
+    def _corners_from_ext(self):
+        from reference import corner_metrics, corners_from_speed
+        e = self.ext
+        out = []
+        for k, apex in enumerate(corners_from_speed(e.v)):
+            m = corner_metrics(e.v, e.gear, apex, max(0, apex - int(250 / BIN_M)), min(e.n - 1, apex + int(200 / BIN_M)))
+            if not m:
+                continue
+            exit_bin = min(e.n - 1, m["accel"] + int(80 / BIN_M))
+            out.append(Corner(k + 1, m["brake"], m["apex"], exit_bin, m["accel"]))
+        self.corners = out
+        self.corners_from_ext = True
 
     def mode(self):
         m = self.cfg.get("mode", "auto")
@@ -153,6 +179,7 @@ class Coach:
             exit_bin = min(n - 1, thr + int(80 / BIN_M))
             corners.append(Corner(k + 1, b0, apex, exit_bin, thr))
         self.corners = corners
+        self.corners_from_ext = False
 
     # ------------------------------------------------------------
     def update(self, src, lap_time_now):
@@ -163,8 +190,12 @@ class Coach:
         if self.nbins is None or self.key != f"{_slug(self.s.track_name)}__{_slug(self.s.car_name)}":
             self._setup()
             if self.new_track and self.cfg.get("track_guide", "auto") != "uit":
-                intro = [(4, "Nieuwe baan met deze auto. Rij eerst een rustige, schone ronde, "
-                             "daarna zeg ik voor elke bocht hoe hard je remt en in welke versnelling.")]
+                if self.ext is not None:
+                    intro = [(4, "Nieuwe baan met deze auto, maar ik heb een snelle ronde van "
+                                 f"{self.ext.meta.get('rijder', 'een andere rijder')}. Ik zeg per bocht wat hij doet.")]
+                else:
+                    intro = [(4, "Nieuwe baan met deze auto. Rij eerst een rustige, schone ronde, "
+                                 "daarna zeg ik voor elke bocht hoe hard je remt en in welke versnelling.")]
         me = self.s.player()
         if not me or me.wraps is None:
             return []
@@ -182,6 +213,15 @@ class Coach:
             self.corner_deltas = {}
             self.guided = set()
         t_in = self.s.t - self.lap_start_t
+        prev = getattr(self, "_prev_pos", None)
+        if prev and prev[2] == lap_nr and dist > prev[0] and b > prev[1]:
+            # tijden van tussenliggende meetpunten precies interpoleren (niet afronden op 1/60 s)
+            d0, b0, _, t0 = prev
+            for k in range(b0 + 1, b + 1):
+                if self.cur.t[k] is None:
+                    f = (k * BIN_M - d0) / (dist - d0)
+                    self.cur.t[k] = t0 + max(0.0, min(1.0, f)) * (t_in - t0)
+        self._prev_pos = (dist, b, lap_nr, t_in)
         self.last_bin, self.last_t_in = b, t_in
         if self.cur.t[b] is None:
             self.cur.t[b] = t_in
@@ -201,7 +241,7 @@ class Coach:
     # ------------------------------------------------------------
     def guide_active(self):
         g = self.cfg.get("track_guide", "auto")
-        if g == "uit" or not self.ref or not self.corners:
+        if g == "uit" or not self.corners or (not self.ref and self.ext is None):
             return False
         if g == "altijd":
             return True
@@ -222,9 +262,13 @@ class Coach:
         return []
 
     def _corner_brief(self, c):
-        r = self.ref
-        peak = max((r.brake[i] or 0) for i in range(c.brake_bin, c.apex_bin + 1))
-        rem = "hard remmen" if peak > 0.7 else ("remmen" if peak > 0.35 else "licht remmen")
+        r = self.ref if self.ref is not None and not self.use_ext() else self.ext
+        if r is self.ext:
+            drop = (r.v[c.brake_bin] or 0) - (r.v[c.apex_bin] or 0)
+            rem = "hard remmen" if drop > 80 else ("remmen" if drop > 30 else "licht remmen")
+        else:
+            peak = max((r.brake[i] or 0) for i in range(c.brake_bin, c.apex_bin + 1))
+            rem = "hard remmen" if peak > 0.7 else ("remmen" if peak > 0.35 else "licht remmen")
         gears = [r.gear[i] for i in range(c.brake_bin, c.exit_bin + 1) if r.gear and r.gear[i]]
         names = {1: "eerste", 2: "tweede", 3: "derde", 4: "vierde", 5: "vijfde", 6: "zesde", 7: "zevende"}
         g = names.get(min(gears)) + " versnelling" if gears else None
@@ -238,7 +282,7 @@ class Coach:
 
 
     def _check_corners(self, b):
-        if not self.ref or not self.corners:
+        if not self.corners or (not self.ref and self.ext is None):
             return []
         tips = []
         for c in self.corners:
@@ -251,6 +295,8 @@ class Coach:
         return tips
 
     def _analyse(self, c):
+        if self.use_ext():
+            return self._analyse_ext(c)
         cur, ref = self.cur, self.ref
         start = max(0, c.brake_bin - int(60 / BIN_M))
         need = [start, c.brake_bin, c.apex_bin, c.exit_bin]
@@ -298,6 +344,57 @@ class Coach:
             return (3, txt)
         return None
 
+    def _analyse_ext(self, c):
+        """Vergelijk deze bocht met de ronde van een snellere rijder (alleen snelheid/versnelling bekend)."""
+        from reference import corner_metrics
+        cur, ext = self.cur, self.ext
+        start = max(0, c.brake_bin - int(60 / BIN_M))
+        end = c.exit_bin
+        if any(cur.t[i] is None for i in (start, c.apex_bin, end)) or ext.t[start] is None or ext.t[end] is None:
+            return None
+        loss = (cur.t[end] - cur.t[start]) - (ext.t[end] - ext.t[start])
+        self.corner_deltas[c.nr] = loss
+        lo, hi = max(0, c.brake_bin - int(150 / BIN_M)), min(cur.n - 1, end)
+        from reference import speed_profile
+        mine = corner_metrics(speed_profile(cur.t), cur.gear, c.apex_bin, lo, hi)
+        theirs = corner_metrics(ext.v, ext.gear, c.apex_bin, lo, hi)
+        if not mine or not theirs:
+            return None
+        mode = self.mode()
+        thresh = self.cfg["min_loss_race"] if mode == "race" else self.cfg["min_loss_practice"]
+        if mode == "race" and self.tips_this_lap >= self.cfg["max_tips_per_lap_race"]:
+            return None
+        if self.cfg.get("quiet_when_battling") and self.s.is_race() and self._battling():
+            return None
+        names = {1: "eerste", 2: "tweede", 3: "derde", 4: "vierde", 5: "vijfde", 6: "zesde", 7: "zevende"}
+        parts = []
+        bd = (mine["brake"] - theirs["brake"]) * BIN_M          # negatief = jij remt eerder
+        dv = mine["vmin"] - theirs["vmin"]
+        ad = (mine["accel"] - theirs["accel"]) * BIN_M          # positief = jij later op snelheid
+        if bd <= -10:
+            parts.append(f"de snelste remt {int(abs(bd))} meter later")
+        elif bd >= 10 and dv < -2:
+            parts.append(f"jij remt {int(bd)} meter later maar komt er langzamer door")
+        if dv <= -3:
+            parts.append(f"hij gaat {abs(dv):.0f} kilometer per uur sneller door de top")
+        if theirs["gear"] and mine["gear"] and theirs["gear"] != mine["gear"]:
+            parts.append(f"hij neemt hem in de {names.get(theirs['gear'], theirs['gear'])}")
+        if ad >= 10:
+            parts.append(f"hij is {int(ad)} meter eerder weer op snelheid")
+        sec = f"{abs(loss):.2f}".replace(".", ",")
+        txt = None
+        if loss >= thresh:
+            if parts:
+                txt = f"Bocht {c.nr}: " + ", ".join(parts[:2]) + f". {sec} verloren."
+            else:
+                txt = f"Bocht {c.nr}: {sec} verloren op de referentie."
+        elif loss <= -max(0.1, thresh) and mode == "practice":
+            txt = f"Bocht {c.nr}: sneller dan de referentie!"
+        if txt:
+            self.tips_this_lap += 1
+            return (3, txt)
+        return None
+
     def _battling(self):
         ahead, behind = self.s.neighbours()
         for c in (ahead, behind):
@@ -314,7 +411,7 @@ class Coach:
         msgs = []
         if self.corner_deltas:
             self.last_lap_deltas = dict(self.corner_deltas)
-        if self.ref is not None and self.cur is not None:
+        if (self.ref is not None or self.ext is not None) and self.cur is not None:
             self.guide_laps += 1
         if self.cur is not None and self.cur.coverage() > 0.9:
             snap = self.cur.copy()
@@ -325,7 +422,17 @@ class Coach:
         if lap is None or self.nbins is None:
             return msgs
         race_quiet = self.mode() == "race" and (self.s.player() and (self.s.player().wraps or 0) % 3 != 0)
-        if self.cfg.get("lap_summary") and self.corner_deltas and self.ref and not race_quiet and clean:
+        if self.cfg.get("lap_summary") and self.corner_deltas and self.use_ext() and not race_quiet and clean:
+            gap = lap_time - self.ext.lap_time
+            worst = [k for k, v in sorted(self.corner_deltas.items(), key=lambda kv: -kv[1]) if v > 0.08][:2]
+            if gap > 0:
+                txt = (f"Op de referentie van {self.ext.meta.get('rijder', '?')} verlies je " + f"{gap:.2f}".replace(".", ",") + ".")
+                if worst:
+                    txt += " Het meest in bocht " + " en ".join(str(k) for k in worst) + "."
+                msgs.append((4, txt))
+            else:
+                msgs.append((4, "Je was sneller dan de referentie! Die ronde wordt je nieuwe maatstaf."))
+        elif self.cfg.get("lap_summary") and self.corner_deltas and self.ref and not race_quiet and clean:
             worst = max(self.corner_deltas.items(), key=lambda kv: kv[1])
             best = min(self.corner_deltas.items(), key=lambda kv: kv[1])
             if worst[1] > 0.1 and (self.mode() == "practice" or worst[1] > 0.25):
@@ -366,4 +473,7 @@ class Coach:
 
     def summary(self):
         return {"referentie_ronde": self.ref_time, "bochten": len(self.corners),
+                "snelle_referentie": ({"rijder": self.ext.meta.get("rijder"), "tijd": self.ext.lap_time,
+                                       "datum": self.ext.meta.get("datum")} if self.ext else None),
+                "vergelijkt_met": "snelle referentie" if self.use_ext() else "eigen beste ronde",
                 "laatste_ronde_per_bocht_verschil_s": {k: round(v, 2) for k, v in self.corner_deltas.items()}}

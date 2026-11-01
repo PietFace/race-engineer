@@ -102,6 +102,10 @@ def _profile(d, var=None):
     return v, brake, thr, w, ci, phase
 
 
+def _gear(v):
+    return 1 if v < 20 else 2 if v < 30 else 3 if v < 40 else 4 if v < 52 else 5 if v < 63 else 6
+
+
 class _Car:
     def __init__(self, idx, pace, start_dist):
         self.idx = idx
@@ -279,6 +283,7 @@ class MockSource:
             if car.dist < 0:
                 v = min(v, 35.0)
             car.dist += v * dt
+            car.v = v
             car.fuel -= car.fpl * (v * dt) / TRACK_LEN
             if car.idx == PLAYER:
                 self.speed, self.brake, self.throttle = v, b, th
@@ -462,6 +467,8 @@ class MockSource:
             "CarIdxBestLapTime": [c.best_lap for c in self.cars],
             "CarIdxTrackSurface": [1 if c.on_pit else 3 for c in self.cars],
             "CarIdxClass": [c.cls for c in self.cars],
+            "CarIdxGear": [_gear(getattr(c, "v", 0) or 0) for c in self.cars],
+            "CarIdxSteer": [0.0 for _ in self.cars],
         }
 
     def __getitem__(self, key):
@@ -478,7 +485,7 @@ class MockSource:
                              "CarClassID": 2 if i in GTP else 1,
                              "CarClassShortName": "GTP" if i in GTP else "GT3",
                              "CarClassEstLapTime": 66.0 if i in GTP else 73.5,
-                             "CarScreenNameShort": "Porsche 963 GTP" if i in GTP else "McLaren 720S GT3 EVO",
+                             "CarScreenNameShort": "Porsche 963 GTP" if i in GTP else ("Ferrari 296 GT3" if i in (1, 3, 5) else "McLaren 720S GT3 EVO"),
                              "IRating": IRATINGS[i], "LicString": "A 4.12" if IRATINGS[i] > 3000 else "B 3.20",
                              "CurDriverIncidentCount": self.driver_inc[i],
                              "CarIsPaceCar": 0, "IsSpectator": 0} for i, n in enumerate(NAMES)],

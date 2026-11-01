@@ -113,6 +113,8 @@ class Voice:
         self.say(text, 0)
 
     def hold(self, seconds):
+        if self.engine == "print":
+            return   # alleen tekst (tests): niets op te houden
         self.hold_until = max(self.hold_until, time.time() + seconds)
 
     def say(self, text, priority=2):

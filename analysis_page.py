@@ -41,6 +41,8 @@ class TraceChart(QWidget):
             t0l, t0r = lap.t[a] or 0, self.ref.t[a] or 0
             return [((lap.t[i] or 0) - t0l) - ((self.ref.t[i] or 0) - t0r) for i in range(a, b)]
         arr = getattr(lap, key)
+        if not arr or all(x is None for x in arr[a:b]):
+            return []   # bv. gas/rem van een andere rijder: niet bekend
         mul = 100 if key in ("thr", "brake") else 1
         return [(arr[i] if arr[i] is not None else 0) * mul for i in range(a, b)]
 
@@ -66,7 +68,7 @@ class TraceChart(QWidget):
         p.setPen(QColor(COL["ref"]))
         p.drawText(left, 16, f"━ {self.ref_label}")
         p.setPen(QColor(COL["lap"]))
-        p.drawText(left + 200, 16, f"━ {self.lap_label}")
+        p.drawText(left + p.fontMetrics().horizontalAdvance(f"━ {self.ref_label}") + 24, 16, f"━ {self.lap_label}")
         for k, (title, key, fixed) in enumerate(self.PANELS):
             y0 = top + k * (ph + gap)
             rect = QRectF(left, y0, W - left - right, ph)
@@ -145,15 +147,20 @@ class AnalysisPage(QWidget):
         self.lap_box.setMinimumWidth(220)
         self.corner_box = QComboBox()
         self.corner_box.setMinimumWidth(150)
+        self.cmp_box = QComboBox()
+        self.cmp_box.addItem("Mijn beste ronde", "own")
+        self.cmp_box.setMinimumWidth(230)
         refresh = QPushButton("Vernieuwen")
         refresh.clicked.connect(self.refresh)
         top.addWidget(lab("Ronde", "sub"))
         top.addWidget(self.lap_box)
+        top.addWidget(lab("Vergelijk met", "sub"))
+        top.addWidget(self.cmp_box)
         top.addWidget(lab("Bocht", "sub"))
         top.addWidget(self.corner_box)
         top.addWidget(refresh)
         root.addLayout(top)
-        self.info = lab("Oranje = je beste ronde, blauw = de gekozen ronde. Onderste grafiek: tijd verloren (rood) of gewonnen (groen).", "sub", wrap=True)
+        self.info = lab("Oranje = waarmee je vergelijkt, blauw = de gekozen ronde. Onderste grafiek: tijd verloren (rood) of gewonnen (groen).", "sub", wrap=True)
         root.addWidget(self.info)
         self.chart = TraceChart()
         root.addWidget(self.chart, 1)
@@ -169,6 +176,16 @@ class AnalysisPage(QWidget):
         self.setup_line = lab("", "sub", wrap=True)
         bv.addWidget(self.setup_line)
         root.addWidget(bal)
+        libc = card()
+        lv = QVBoxLayout(libc)
+        lv.setContentsMargins(16, 12, 16, 12)
+        lv.addWidget(lab("REFERENTIE-BIBLIOTHEEK · SNELSTE RONDE PER AUTO EN BAAN", "cap"))
+        self.lib_text = lab("Nog leeg. Tijdens elke sessie bewaar ik vanzelf de snelste ronde van iedere auto die meerijdt.", "sub", wrap=True)
+        self.lib_text.setTextFormat(Qt.RichText)
+        lv.addWidget(self.lib_text)
+        root.addWidget(libc)
+        self.cmp_box.currentIndexChanged.connect(self.redraw)
+        self.cmp_box.activated.connect(lambda _i: setattr(self, "_user_cmp", True))
         self.lap_box.currentIndexChanged.connect(self.redraw)
         self.corner_box.currentIndexChanged.connect(self.redraw)
         self._n_laps = -1
@@ -204,8 +221,19 @@ class AnalysisPage(QWidget):
         self.corner_box.blockSignals(False)
         self._n_laps = len(laps)
         self._coach = coach
+        keep_cmp = self.cmp_box.currentData()
+        self.cmp_box.blockSignals(True)
+        self.cmp_box.clear()
+        self.cmp_box.addItem("Mijn beste ronde", "own")
+        if coach and coach.ext is not None:
+            m = coach.ext.meta
+            self.cmp_box.addItem(f"Snelste: {m.get('rijder', '?')} {fmt_lap(m.get('tijd'))}", "ext")
+            if keep_cmp == "ext" or (not getattr(self, "_user_cmp", False) and coach.use_ext()):
+                self.cmp_box.setCurrentIndex(1)
+        self.cmp_box.blockSignals(False)
         self.redraw()
         self._balance()
+        self._library()
 
     def tick(self):
         coach = self._src()
@@ -222,14 +250,49 @@ class AnalysisPage(QWidget):
         lap = laps[idx]["lap"] if idx is not None and idx < len(laps) else None
         lap_label = self.lap_box.currentText().split("  ·  ")[0] if lap else ""
         ref = coach.ref
+        use_ext = self.cmp_box.currentData() == "ext" and coach.ext is not None
+        if use_ext:
+            ref = coach.ext
         rng = None
         cn = self.corner_box.currentData()
         if cn is not None:
             c = next((c for c in coach.corners if c.nr == cn), None)
             if c:
                 rng = (max(0, c.brake_bin - int(120 / BIN_M)), min(coach.nbins, c.exit_bin + int(120 / BIN_M)))
-        ref_label = f"beste ronde {fmt_lap(coach.ref_time)}" if ref else ""
+        if use_ext:
+            ref_label = f"{coach.ext.meta.get('rijder', 'referentie')} {fmt_lap(coach.ext.lap_time)} (gas/rem onbekend)"
+        else:
+            ref_label = f"beste ronde {fmt_lap(coach.ref_time)}" if ref else ""
         self.chart.set_data(ref, lap, rng, coach.corners, ref_label, lap_label)
+
+    def _library(self):
+        lib = getattr(self.win.engine, "library", None)
+        if lib is None:
+            import settings
+            from reference import ReferenceLibrary
+            items = []
+            try:
+                import json, os
+                d = settings.ref_lib_dir()
+                for fn in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+                    if fn.endswith(".json"):
+                        with open(os.path.join(d, fn), encoding="utf-8") as f:
+                            items.append(json.load(f).get("meta", {}))
+            except Exception:
+                items = []
+        else:
+            items = lib.list_all()
+        if not items:
+            return
+        rows = sorted(items, key=lambda m: (m.get("baan", ""), m.get("auto", "")))
+        html = "<table cellspacing='0' cellpadding='3'>" + "<tr style='color:#8A94A6'><td>Baan</td><td>Auto</td><td>Rijder</td><td>Tijd</td><td>Datum</td></tr>"
+        for m in rows[:40]:
+            html += (f"<tr><td>{m.get('baan', '')}</td><td>{m.get('auto', '')}</td><td>{m.get('rijder', '')}"
+                     f"{' (jij)' if m.get('eigen') else ''}</td><td>{fmt_lap(m.get('tijd'))}</td><td>{m.get('datum', '')}</td></tr>")
+        html += "</table>"
+        if len(rows) > 40:
+            html += f"<div>… en nog {len(rows) - 40}</div>"
+        self.lib_text.setText(html)
 
     def _balance(self):
         while self.bal_grid.count():

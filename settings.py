@@ -30,6 +30,7 @@ DEFAULTS = {
     "race_extras": {"pit_auto": True, "pit_tyres": "auto", "tyre_min_laps": 8, "fast_repair": True,
                     "multiclass": True, "multiclass_warn_s": 3.0, "flags": True, "opponent_info": True,
                     "opponent_inc_warn": 8, "irating": True, "weather": True, "track_temp_step": 3.0},
+    "reference": {"enabled": True},
     "spotter": {"enabled": True, "still_there": True, "still_after": 4.0, "clear_delay": 0.45},
     "rival": {"enabled": True, "every_laps": 3, "min_zone_delta": 0.06},
     "setup": {"enabled": True, "announce": True, "eval_laps": 3},
@@ -62,6 +63,10 @@ def logs_dir():
 
 def ref_dir():
     return os.path.join(data_dir(), "referentie_ronden")
+
+
+def ref_lib_dir():
+    return os.path.join(data_dir(), "referentie_bibliotheek")
 
 
 def config_path():

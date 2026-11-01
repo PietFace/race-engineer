@@ -44,6 +44,11 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
 
 ## Training
 
+- **Referentie-bibliotheek**: in elke sessie meet hij alle auto's en bewaart per auto en baan de snelste geldige ronde
+  op je pc (ook van auto's die je die dag niet zelf rijdt). Daarna coacht hij je tegen die ronde:
+  "Bocht 5: de snelste remt 20 meter later, hij gaat 7 km/u sneller door de top. 0,48 verloren."
+  Van andere rijders zijn snelheid, versnelling en stuurhoek bekend; gas en rem niet.
+
 - **Setup**: hij leest je echte setup uit. Advies met jouw waarden ("rembalans naar 53,5 procent, nu 54,0").
   Pas je de setup aan in de garage, dan meldt hij de wijziging en vertelt hij na een paar ronden of het geholpen heeft.
 
