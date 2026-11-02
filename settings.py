@@ -32,7 +32,7 @@ DEFAULTS = {
                     "multiclass": True, "multiclass_warn_s": 3.0, "flags": True, "opponent_info": True,
                     "opponent_inc_warn": 8, "irating": True, "weather": True, "track_temp_step": 3.0},
     "reference": {"enabled": True},
-    "overlays": {"ingeschakeld": False, "doorzichtig": 0.82, "alleen_in_auto": True, "vensters": {},
+    "overlays": {"ingeschakeld": False, "doorzichtig": 0.82, "alleen_in_auto": True, "vensters": {}, "opties": {},
                  "aan": {"relative": True, "stand": True, "ticker": True, "sectoren": True, "invoer": True,
                          "delta": True, "brandstof": True}},
     "technique": {"enabled": True},

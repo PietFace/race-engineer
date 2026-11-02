@@ -3,7 +3,10 @@
 Wordt ongeveer 10 keer per seconde door de motor opgebouwd. De invoer-grafiek (gas/rem/stuur)
 krijgt elke tick een nieuw punt via Engine.input_hist.
 """
+import re
+
 from race_state import N_CP
+from race_extras import irating_change
 
 DEFAULT_CLASS_COLORS = ["#33CEFF", "#FFDA59", "#FF5888", "#AE6BFF", "#53FF77"]
 
@@ -80,11 +83,51 @@ def build(state, src, coach, strat, eng_finished=False):
         for i, c in enumerate(cars):
             pos_of[c.idx] = i + 1
 
+    # startposities (voor 'plekken gewonnen'), één keer per race vastgelegd
+    st = getattr(s, "_ov_start", None)
+    if racing and (st is None or st[0] != s.session_num) and s.session_state == 4:
+        st = (s.session_num, dict(pos_of))
+        s._ov_start = st
+    start_pos = st[1] if st and st[0] == s.session_num else {}
+
+    # iRating-winst/verlies per rijder bij de huidige uitslag (per klasse)
+    ir_delta = {}
+    if race:
+        for cid, cars in by_class.items():
+            rated = [c for c in cars if c.irating > 0]
+            if len(rated) >= 2:
+                ratings = [c.irating for c in rated]
+                for i, c in enumerate(rated):
+                    try:
+                        ir_delta[c.idx] = round(irating_change(ratings, i, i + 1))
+                    except Exception:
+                        pass
+
+    my_last, my_best = me.last_lap, me.best_lap()
+
+    def license_parts(lic):
+        m = re.match(r"\s*([A-Za-z]+)\s*([0-9]+[.,]?[0-9]*)?", lic or "")
+        if not m:
+            return "", None
+        try:
+            sr = float((m.group(2) or "").replace(",", ".")) if m.group(2) else None
+        except ValueError:
+            sr = None
+        return m.group(1).upper(), sr
+
     def row(c):
+        lic, sr = license_parts(c.license)
+        last, best = c.last_lap, c.best_lap()
+        sp = start_pos.get(c.idx)
         return {"idx": c.idx, "pos": pos_of.get(c.idx), "nr": c.number, "naam": c.full_name or c.name,
                 "kort": c.name, "klasse": c.class_name, "kleur": _class_color(c, class_order),
-                "ir": c.irating, "lic": c.license, "pit": c.on_pit, "jij": c.idx == me.idx,
-                "laatste": c.last_lap, "beste": c.best_lap(), "stops": c.pit_stops}
+                "ir": c.irating, "lic": c.license, "lic_klasse": lic, "sr": sr, "pit": c.on_pit,
+                "jij": c.idx == me.idx, "auto": c.car_model, "laatste": last, "beste": best, "stops": c.pit_stops,
+                "ir_delta": ir_delta.get(c.idx),
+                # + = die rijder is langzamer dan jij (jij sneller)
+                "vs_laatste": round(last - my_last, 3) if last and my_last and c.idx != me.idx else None,
+                "vs_beste": round(best - my_best, 3) if best and my_best and c.idx != me.idx else None,
+                "plekken": (sp - pos_of[c.idx]) if sp and pos_of.get(c.idx) else None}
 
     # ---------- relative ----------
     rel = []
@@ -109,7 +152,7 @@ def build(state, src, coach, strat, eng_finished=False):
         rel.append(r)
     rel.sort(key=lambda r: -r["_d"])
     i = next((k for k, r in enumerate(rel) if r["jij"]), 0)
-    rel = rel[max(0, i - 4): i + 5]
+    rel = rel[max(0, i - 8): i + 9]
     for r in rel:
         r.pop("_d", None)
 
@@ -131,10 +174,15 @@ def build(state, src, coach, strat, eng_finished=False):
         cars = by_class[cid]
         leader = cars[0]
         rows = []
+        prev = None
         for c in cars:
             r = row(c)
             r["gap"] = gap_to_leader(c, leader)
+            r["interval"] = None if prev is None else gap_to_leader(c, prev) if not racing else (
+                (lambda g: round(g, 1) if g is not None else None)(s.gap_between(c, prev))
+                if int(prev.progress - c.progress) < 1 else f"+{int(prev.progress - c.progress)}R")
             rows.append(r)
+            prev = c
         standings.append({"klasse": leader.class_name or "Klasse", "kleur": _class_color(leader, class_order),
                           "eigen": cid == me.class_id, "auto": rows})
 

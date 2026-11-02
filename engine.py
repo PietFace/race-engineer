@@ -44,7 +44,7 @@ class Engine:
         self.voice = None
         self.ai = None
         self.live, self.overlay = {}, None
-        self.input_hist = collections.deque(maxlen=60 * 8)
+        self.input_hist = collections.deque(maxlen=60 * 12)
 
     def log(self, msg, kind="info"):
         try:
@@ -156,7 +156,7 @@ class Engine:
         last_ref_time = None
         map_seen = 0
         last_ov = -1.0
-        self.input_hist = collections.deque(maxlen=60 * 8)   # 8 seconden invoer
+        self.input_hist = collections.deque(maxlen=60 * 12)   # 8 seconden invoer
         self.live, self.overlay = {}, None
         was_on_track = False
         self._debrief_laps = 0

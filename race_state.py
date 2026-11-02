@@ -50,6 +50,7 @@ class Car:
         self.class_name = ""
         self.class_color = None   # "#rrggbb" uit iRacing
         self.full_name = ""
+        self.car_model = ""
         self.class_est_lap = None
         self.irating = 0
         self.license = ""
@@ -135,6 +136,7 @@ class RaceState:
             except (TypeError, ValueError):
                 car.class_color = None
             car.full_name = full
+            car.car_model = str(d.get("CarScreenNameShort") or d.get("CarScreenName") or "")
             try:
                 car.class_est_lap = float(d.get("CarClassEstLapTime") or 0) or None
             except (TypeError, ValueError):
