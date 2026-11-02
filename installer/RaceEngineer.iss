@@ -51,5 +51,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; bij een update vanuit het programma (stil): daarna vanzelf weer opstarten
+Filename: "{app}\{#AppExe}"; Flags: nowait; Check: WizardSilent
 
 ; Instellingen en referentierondes staan in %APPDATA%\RaceEngineer en blijven bij updates gewoon bewaard.
