@@ -18,6 +18,8 @@ from setup_watch import SetupWatcher
 from reference import ReferenceLibrary
 from technique import Technique
 from trackmap import TrackMap
+import collections
+import overlay_data
 from lesson import LessonPlan
 from inputs import Listener
 from race_state import RaceState, fmt_lap, say_lap
@@ -41,6 +43,8 @@ class Engine:
         self.status = {}
         self.voice = None
         self.ai = None
+        self.live, self.overlay = {}, None
+        self.input_hist = collections.deque(maxlen=60 * 8)
 
     def log(self, msg, kind="info"):
         try:
@@ -90,6 +94,7 @@ class Engine:
             self.running = False
             self.connected = False
             self.status = {}
+            self.overlay, self.live = None, {}
             self.log("Engineer gestopt.")
 
     def _run_inner(self, mock, speed, laps):
@@ -150,6 +155,9 @@ class Engine:
         was_incident = False
         last_ref_time = None
         map_seen = 0
+        last_ov = -1.0
+        self.input_hist = collections.deque(maxlen=60 * 8)   # 8 seconden invoer
+        self.live, self.overlay = {}, None
         was_on_track = False
         self._debrief_laps = 0
 
@@ -196,6 +204,7 @@ class Engine:
                     self.log("Verbinding met iRacing verbroken.")
                     self.connected = False
                     self.status = {}
+                    self.overlay = None
                 time.sleep(1)
                 continue
             if not self.connected:
@@ -362,6 +371,23 @@ class Engine:
             if mock and src.finished and not getattr(src, "_debriefed", False):
                 src._debriefed = True
                 training_debrief()
+
+            # overlays: invoer elke tick, de rest ~10x per seconde
+            self.input_hist.append((src["Throttle"] or 0.0, src["Brake"] or 0.0, src["Clutch"],
+                                    src["SteeringWheelAngle"] or 0.0))
+            self.live = {"gas": src["Throttle"] or 0.0, "rem": src["Brake"] or 0.0,
+                         "koppeling": src["Clutch"], "stuur": src["SteeringWheelAngle"] or 0.0,
+                         "stuur_max": src["SteeringWheelAngleMax"], "versnelling": src["Gear"],
+                         "snelheid": (src["Speed"] or 0) * 3.6, "toeren": src["RPM"],
+                         "abs": bool(src["BrakeABSactive"]), "in_auto": bool(src["IsOnTrack"])}
+            if state.t - last_ov > 0.1 or state.t < last_ov:
+                last_ov = state.t
+                try:
+                    self.overlay = overlay_data.build(state, src, coach, strat, eng.finished)
+                except Exception as e:
+                    if not getattr(self, "_ov_err", False):
+                        self._ov_err = True
+                        self.log(f"Overlay-gegevens: {e}")
 
             if state.t - last_status > 0.4 or state.t < last_status:
                 last_status = state.t

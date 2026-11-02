@@ -48,6 +48,8 @@ class Car:
         self.position = 0
         self.official_pos = 0
         self.class_name = ""
+        self.class_color = None   # "#rrggbb" uit iRacing
+        self.full_name = ""
         self.class_est_lap = None
         self.irating = 0
         self.license = ""
@@ -126,6 +128,13 @@ class RaceState:
             car.number = str(d.get("CarNumber", ""))
             car.class_id = d.get("CarClassID", 0)
             car.class_name = str(d.get("CarClassShortName") or "")
+            try:
+                col = d.get("CarClassColor")
+                col = int(col, 16) if isinstance(col, str) else int(col or 0)
+                car.class_color = f"#{col:06x}" if col else None
+            except (TypeError, ValueError):
+                car.class_color = None
+            car.full_name = full
             try:
                 car.class_est_lap = float(d.get("CarClassEstLapTime") or 0) or None
             except (TypeError, ValueError):
@@ -350,7 +359,10 @@ class RaceState:
 
     def gap_to(self, other):
         """Tijdsverschil in seconden. Positief = andere auto ligt voor."""
-        me = self.player()
+        return self.gap_between(self.player(), other)
+
+    def gap_between(self, me, other):
+        """Tijdsverschil tussen twee auto's. Positief = other ligt voor me."""
         if not me or not other or me.last_g is None or other.last_g is None:
             return None
         if other.progress >= me.progress:

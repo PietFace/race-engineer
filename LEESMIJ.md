@@ -81,6 +81,17 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
 - **Huiswerk**: na de sessie wat goed ging en waar je de volgende keer aan werkt. Dit wordt per auto en baan
   bewaard, dus de volgende keer begint het lesplan met je huiswerk.
 
+## Overlays
+
+Informatie bovenop iRacing, net als RaceLabs: **Relative**, **Stand**, **Stand horizontaal**, **Sectoren** (jij tegen
+de auto voor en achter je), **Invoer** (gas, rem, koppeling en stuur), **Delta** (live tegen je beste ronde) en
+**Brandstof** (verbruik, stops, pitvenster, bijtanken).
+
+- Zet iRacing op *Windowed* zonder rand (borderless), anders verdwijnen de overlays achter het spel.
+- Pagina *Overlays*: vink *Overlays gebruiken* aan en kies welke je wilt zien.
+- *Overlays verplaatsen*: sleep ze waar je wilt en trek aan de hoek rechtsonder om ze groter of kleiner te maken.
+  Klik daarna op *Klaar met verplaatsen*. Tijdens het rijden klik je er gewoon doorheen.
+
 ## Tweede scherm
 
 Open *Tweede scherm* in het programma en scan de QR-code met je telefoon of iPad (zelfde wifi).

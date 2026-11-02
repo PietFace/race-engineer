@@ -1028,9 +1028,12 @@ class MainWindow(QMainWindow):
         from analysis_page import AnalysisPage
         self.analysis = AnalysisPage(self, lab, card)
         self.screen = ScreenPage(self)
+        from overlays import OverlayPage
+        self.ov_page = OverlayPage(self, lab, card)
         self.navs = []
-        for i, (name, page) in enumerate([("Race", self.race), ("Analyse", self.analysis), ("Tweede scherm", self.screen),
-                                         ("Instellingen", self.sets), ("Knoppen", self.btns)]):
+        for i, (name, page) in enumerate([("Race", self.race), ("Analyse", self.analysis), ("Overlays", self.ov_page),
+                                         ("Tweede scherm", self.screen), ("Instellingen", self.sets),
+                                         ("Knoppen", self.btns)]):
             page.setObjectName("page")
             self.stack.addWidget(page)
             b = QPushButton(name)
@@ -1061,6 +1064,9 @@ class MainWindow(QMainWindow):
         self.sets.load(self.cfg)
         self.apply_web()
         self.screen.load(self.cfg)
+        from overlays import OverlayManager
+        self.overlays = OverlayManager(self)
+        self.ov_page.load(self.cfg)
         self.btns.load(self.cfg)
         self.race.refresh_keys(self.cfg)
         self.apply_inputs()
@@ -1109,7 +1115,7 @@ class MainWindow(QMainWindow):
             "2. Optioneel: een Claude API-sleutel voor slimme updates en vragen stellen.\n"
             "3. Klik op 'Testrace' om alles te proberen zonder iRacing.\n\n"
             "Daarna: start iRacing en stap in de auto. De engineer meldt zich vanzelf.")
-        self.go(3)
+        self.go(4)
 
     def _web_data(self):
         eng = self.engine
@@ -1262,6 +1268,10 @@ class MainWindow(QMainWindow):
         self.status_txt.setText(txt)
 
     def closeEvent(self, e):
+        try:
+            self.overlays.close_all()
+        except Exception:
+            pass
         self.engine.stop()
         self.web.stop()
         e.accept()
