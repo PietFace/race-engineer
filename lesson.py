@@ -26,6 +26,7 @@ class LessonPlan:
         self.pause_until_lap = -1  # na een spin even rust
         self.progress = None
         self._key = None
+        self._added = None   # wat deze sessie al in de voortgang heeft gezet (wordt vervangen, niet verdubbeld)
 
     @property
     def enabled(self):
@@ -162,6 +163,13 @@ class LessonPlan:
         """Nabespreking zonder AI: wat ging goed, wat is het huiswerk."""
         self._load()
         f = self.tech.diagnose(getattr(self.coach, "_balance", None))
+        if self._added:
+            for key, items in self._added.items():
+                lst = self.progress.get(key, [])
+                for it in items:
+                    if any(x is it for x in lst):
+                        lst.remove(it)
+        self._added = {"huiswerk": [], "sessies": []}
         lines = []
         if self.done:
             lines.append("Geslaagd vandaag: " + ", ".join(f"bocht {d['bocht']} ({d['code'].replace('_', ' ')})" for d in self.done) + ".")
@@ -173,11 +181,13 @@ class LessonPlan:
         hw = [x for x in f if x.get("bocht")][:2]
         if hw:
             lines.append("Huiswerk voor de volgende keer: " + " ".join(x["uitleg"] for x in hw))
-            self.progress.setdefault("huiswerk", []).extend(
-                {"datum": datetime.date.today().isoformat(), "bocht": x["bocht"], "code": x["code"]} for x in hw)
-        self.progress.setdefault("sessies", []).append({"datum": datetime.date.today().isoformat(),
-                                                        "bevindingen": [x["code"] for x in f[:6]],
-                                                        "geslaagd": [d["code"] for d in self.done]})
+            new_hw = [{"datum": datetime.date.today().isoformat(), "bocht": x["bocht"], "code": x["code"]} for x in hw]
+            self.progress.setdefault("huiswerk", []).extend(new_hw)
+            self._added["huiswerk"] = new_hw
+        sess = {"datum": datetime.date.today().isoformat(), "bevindingen": [x["code"] for x in f[:6]],
+                "geslaagd": [d["code"] for d in self.done]}
+        self.progress.setdefault("sessies", []).append(sess)
+        self._added["sessies"] = [sess]
         self.progress["sessies"] = self.progress["sessies"][-30:]
         self.save()
         return " ".join(lines) if lines else "Nog te weinig schone ronden voor een nabespreking."

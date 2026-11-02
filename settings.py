@@ -72,6 +72,10 @@ def ref_lib_dir():
     return os.path.join(data_dir(), "referentie_bibliotheek")
 
 
+def track_map_dir():
+    return os.path.join(data_dir(), "bochtenkaarten")
+
+
 def progress_dir():
     return os.path.join(data_dir(), "voortgang")
 

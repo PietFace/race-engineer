@@ -38,6 +38,7 @@ class Technique:
         self._upd = None
         self.findings = []         # laatste diagnose
         self.self_compare = {}     # bocht -> tekst
+        self.n_laps = 0            # aantal meegetelde ronden deze sessie
 
     @property
     def enabled(self):
@@ -206,6 +207,7 @@ class Technique:
             h.append(m)
             # ronden die achteraf veel trager blijken dan je beste ronde tellen niet mee
             h[:] = [r for r in h if r.get("rondetijd", 0) <= self.best_time * 1.04][-12:]
+        self.n_laps += 1
         ex = self._lap_extras(ss)
         ex["ronde"] = lap_nr
         self.lap_info.append(ex)

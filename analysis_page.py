@@ -374,11 +374,15 @@ class AnalysisPage(QWidget):
             self.bal_hint.show()
             return
         self.bal_hint.hide()
-        corners = sorted({k[0] for k in bal.latest})
-        self.bal_grid.addWidget(self._lab("", "sub"), 0, 0)
-        for j, nr in enumerate(corners):
-            self.bal_grid.addWidget(self._lab(f"B{nr}", "cap"), 0, j + 1)
-        for r, (phase, name) in enumerate((("in", "Insturen"), ("uit", "Uitkomen")), start=1):
+        all_corners = sorted({k[0] for k in bal.latest})
+        PER = 10   # bochten per blok, zodat ook een baan met 30+ bochten past
+        for blk in range(0, len(all_corners), PER):
+          corners = all_corners[blk:blk + PER]
+          r0 = (blk // PER) * 3
+          self.bal_grid.addWidget(self._lab("", "sub"), r0, 0)
+          for j, nr in enumerate(corners):
+            self.bal_grid.addWidget(self._lab(f"B{nr}", "cap"), r0, j + 1)
+          for r, (phase, name) in enumerate((("in", "Insturen"), ("uit", "Uitkomen")), start=r0 + 1):
             self.bal_grid.addWidget(self._lab(name, "sub"), r, 0)
             for j, nr in enumerate(corners):
                 d = bal.latest.get((nr, phase))

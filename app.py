@@ -239,8 +239,9 @@ class RacePage(QWidget):
         cv.setContentsMargins(16, 12, 16, 14)
         cv.setSpacing(8)
         cv.addWidget(lab("COACHING · LAATSTE RONDE PER BOCHT T.O.V. JE BESTE", "cap"))
-        self.chips_row = QHBoxLayout()
-        self.chips_row.setSpacing(6)
+        self.chips_row = QGridLayout()
+        self.chips_row.setHorizontalSpacing(6)
+        self.chips_row.setVerticalSpacing(6)
         self.chips = []
         cv.addLayout(self.chips_row)
         self.coach_hint = lab("Na je eerste schone ronde zie je hier per bocht waar je tijd wint of verliest.", "sub", wrap=True)
@@ -370,7 +371,8 @@ class RacePage(QWidget):
         keys = sorted(deltas)
         while len(self.chips) < len(keys):
             c = lab("", "chip")
-            self.chips_row.addWidget(c)
+            i = len(self.chips)
+            self.chips_row.addWidget(c, i // 8, i % 8)   # 8 bochten per rij
             self.chips.append(c)
         for i, c in enumerate(self.chips):
             if i < len(keys):
@@ -1048,7 +1050,7 @@ class MainWindow(QMainWindow):
         self.update_btn.setObjectName("primary")
         self.update_btn.setStyleSheet("padding: 6px 8px; font-size: 12px;")
         self.update_btn.hide()
-        self.update_btn.clicked.connect(lambda: webbrowser.open(self._update_info["url"]) if self._update_info else None)
+        self.update_btn.clicked.connect(self._do_update)
         sv.addWidget(self.update_btn)
         sv.addWidget(lab(f"versie {VERSION}", "brandsub"))
         h.addWidget(side)
@@ -1186,7 +1188,55 @@ class MainWindow(QMainWindow):
         self._test_voice = Voice(cfg, self.log)
         self._test_voice.say("Radio check. Hoor je me goed? Je ligt P3, 1,2 seconde achter de auto voor je.", 1)
 
+    def _do_update(self):
+        import updater
+        info = self._update_info
+        if not info:
+            return
+        if not updater.can_self_update(info):
+            webbrowser.open(info["url"])
+            return
+        if self.engine.running:
+            if QMessageBox.question(self, "Update installeren",
+                                    "De engineer is nog bezig. Nu bijwerken? Hij stopt dan even en start daarna vanzelf opnieuw.") \
+                    != QMessageBox.Yes:
+                return
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("Update downloaden…")
+        self._upd_state = {"pct": 0, "done": False, "err": None}
+
+        def progress(p):
+            self._upd_state["pct"] = p
+
+        def done(err):
+            self._upd_state["err"] = err
+            self._upd_state["done"] = True
+        updater.download_and_install(info, progress, done)
+
+    def _update_progress(self):
+        st = getattr(self, "_upd_state", None)
+        if not st:
+            return
+        if not st["done"]:
+            self.update_btn.setText(f"Update downloaden… {st['pct']}%")
+            return
+        self._upd_state = None
+        if st["err"]:
+            self.update_btn.setEnabled(True)
+            self.update_btn.setText(f"Update beschikbaar: versie {self._update_info['versie']}")
+            QMessageBox.warning(self, "Update", f"Downloaden lukte niet ({st['err']}). Ik open de downloadpagina.")
+            webbrowser.open(self._update_info["url"])
+            return
+        self.update_btn.setText("Installeren…")
+        try:
+            if self.engine.running:
+                self.engine.stop()
+        except Exception:
+            pass
+        QTimer.singleShot(500, self.close)
+
     def tick(self):
+        self._update_progress()
         if self._update_info and not getattr(self, "_update_shown", False):
             self._update_shown = True
             self.update_btn.setText(f"Update beschikbaar: versie {self._update_info['versie']}")

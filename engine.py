@@ -17,6 +17,7 @@ from rival import RivalAnalyser
 from setup_watch import SetupWatcher
 from reference import ReferenceLibrary
 from technique import Technique
+from trackmap import TrackMap
 from lesson import LessonPlan
 from inputs import Listener
 from race_state import RaceState, fmt_lap, say_lap
@@ -77,10 +78,11 @@ class Engine:
             try:
                 if getattr(self, "lessons", None) and self.technique.history:
                     txt = self.lessons.session_debrief_rules()
-                    p = os.path.join(settings.logs_dir(), f"huiswerk_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt")
-                    with open(p, "w", encoding="utf-8") as f:
-                        f.write(txt)
-                    self.log("Huiswerk: " + txt, "debrief")
+                    if getattr(self, "_debrief_laps", 0) != self.technique.n_laps:   # nog niet besproken
+                        p = os.path.join(settings.logs_dir(), f"huiswerk_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt")
+                        with open(p, "w", encoding="utf-8") as f:
+                            f.write(txt)
+                        self.log("Huiswerk: " + txt, "debrief")
             except Exception:
                 pass
             if self.voice:
@@ -117,6 +119,7 @@ class Engine:
         import tempfile
         # testsessies gebruiken een tijdelijke map, zodat je echte referentierondes schoon blijven
         coach = Coach(cfg, state, data_dir=settings.ref_dir() if not mock else tempfile.mkdtemp(prefix="re_test_"))
+        coach.map = TrackMap(settings.track_map_dir() if not mock else tempfile.mkdtemp(prefix="re_map_"))
         eng = Engineer(cfg, state, strat, coach)
         incw = IncidentWatcher(cfg, state, coach)
         eng.incidents = incw
@@ -146,6 +149,35 @@ class Engine:
         self.technique, self.lessons = tech, lessons
         was_incident = False
         last_ref_time = None
+        map_seen = 0
+        was_on_track = False
+        self._debrief_laps = 0
+
+        def training_debrief():
+            """Na een training (uitstappen of einde sessie): wat ging goed, waar lag tijd, huiswerk."""
+            n = tech.n_laps
+            if coach.mode() != "practice" or n - self._debrief_laps < 3:
+                return
+            self._debrief_laps = n
+            snapshot = {"rijtechniek": tech.summary(), "lesplan": lessons.summary(),
+                        "auto": state.car_name, "baan": state.track_name,
+                        "balans": bal.summary(), "setup": setup.summary().get("belangrijkste")}
+
+            def done(text):
+                rules = lessons.session_debrief_rules()      # bewaart ook het huiswerk
+                text = text or rules
+                if not text:
+                    return
+                try:
+                    p = os.path.join(settings.logs_dir(), f"training_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt")
+                    with open(p, "w", encoding="utf-8") as f:
+                        f.write(text)
+                except Exception:
+                    pass
+                self.log(text, "debrief")
+                voice.say("Nabespreking van je training. " + text, 4)
+            ai.run_async(lambda: ai.technique_debrief(snapshot), done, fallback=lambda: None)
+
         self.state, self.eng, self.strat, self.coach = state, eng, strat, coach
 
         lap_log = []
@@ -181,6 +213,12 @@ class Engine:
                     for nr in list(tech.history):
                         tech.compare_self(nr)
                     msgs += lessons.on_lap(lap_m, ev[3])
+            if coach.map_version != map_seen:
+                # bochten zijn opnieuw genummerd: oude metingen per bocht passen niet meer
+                map_seen = coach.map_version
+                tech.history, tech.self_compare = {}, {}
+                lessons.focus, lessons.results = None, []
+                bal.reset_history()
             tech.update(src)
             coach.focus_corner = lessons.focus["bocht"] if lessons.active() else None
             msgs += coach.update(src, None)
@@ -316,6 +354,14 @@ class Engine:
                         self.log(q, "question")
                         ai.run_async(lambda: ai.answer(q, eng.snapshot()), speak_cb(1))
                     listener.listen(on_question)
+
+            on_track = bool(src["IsOnTrack"])
+            if was_on_track and not on_track:
+                training_debrief()
+            was_on_track = on_track
+            if mock and src.finished and not getattr(src, "_debriefed", False):
+                src._debriefed = True
+                training_debrief()
 
             if state.t - last_status > 0.4 or state.t < last_status:
                 last_status = state.t

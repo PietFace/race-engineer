@@ -88,6 +88,8 @@ class RaceExtras:
         racing = s.is_race() and s.session_state == 4
         if self.on("weather"):
             out += self._weather(src)
+        if self.on("multiclass") and not self.eng.quiet:
+            out += self._traffic()
         if not s.is_race():
             return out
         if self.on("flags"):
@@ -111,8 +113,6 @@ class RaceExtras:
                 self.pit_announced = False
         if self.on("pit_auto"):
             out += self._pit_prep(src)
-        if self.on("multiclass") and not self.eng.quiet:
-            out += self._other_classes()
         if self.on("opponent_info") and not self.eng.quiet:
             out += self._opponents()
         return out
@@ -186,40 +186,62 @@ class RaceExtras:
     # ------------------------------------------------------------
     #  Andere klassen
     # ------------------------------------------------------------
-    def _other_classes(self):
+    def _traffic(self):
+        """Sneller verkeer van achteren, in elke sessie: een snellere klasse, iemand die je op ronde zet,
+        of (in training/kwalificatie) een auto op een snelle ronde. Gemeten op hoe snel hij echt inloopt."""
         s = self.s
         me = s.player()
         L = s.track_len_m
-        my_est = me.class_est_lap or me.avg_lap(3)
-        if not my_est or me.on_pit:
+        if not L or me.on_pit or me.last_pct is None:
             return []
+        race = s.is_race()
+        if race and getattr(self.eng, "finished", False):
+            return []   # na de finish: uitrijden
+        if race and (me.wraps or 0) < 1:
+            return []   # startronde: iedereen zit op elkaar
+        v_me = self._v.get(me.idx, (0, 0, 0))[2] or 0
         warn_s = float(self.cfg.get("multiclass_warn_s", 3.0))
+        my_est = me.class_est_lap or me.avg_lap(3)
         coming = []
         for idx, c in s.cars.items():
-            if idx == me.idx or c.class_id == me.class_id or c.on_pit or c.last_pct is None:
+            if idx == me.idx or c.on_pit or c.last_pct is None:
                 continue
-            est = c.class_est_lap
-            if not est or est > my_est * 0.97:
-                continue  # niet sneller
             behind_m = ((me.last_pct - c.last_pct) % 1.0) * L
-            v = self._v.get(idx, (0, 0, 0))[2] or L / est
+            if behind_m < 5 or behind_m > 600:
+                continue
+            v = self._v.get(idx, (0, 0, 0))[2] or 0
             if v < 15:
                 continue
-            gap = behind_m / v
-            if 0.3 < gap < warn_s + 1.5:
-                coming.append((gap, c))
+            other_class = c.class_id != me.class_id and c.class_est_lap and my_est and c.class_est_lap < my_est * 0.97
+            lapping = race and c.class_id == me.class_id and (c.wraps or 0) > (me.wraps or 0) \
+                and not (c.wraps == (me.wraps or 0) + 1 and c.last_pct < me.last_pct)
+            closing = v - v_me
+            if closing < (2.0 if (other_class or lapping) else 5.0):
+                continue   # loopt niet (duidelijk) in: gewone gevechten doen de gaps en de spotter
+            gap = behind_m / v                     # over zoveel seconden is hij waar jij nu bent
+            if 0.3 < gap <= warn_s:
+                kind = "klasse" if other_class else ("ronde" if lapping else "snel")
+                coming.append((gap, c, kind))
         if not coming:
             return []
         coming.sort(key=lambda x: x[0])
-        gap, first = coming[0]
-        if (me.wraps or 0) < 1 or gap > warn_s or s.t - self.class_warned.get(first.idx, -999) < 45:
+        gap, first, kind = coming[0]
+        if s.t - self.class_warned.get(first.idx, -999) < 45:
             return []
-        for _, c in coming:
+        for _, c, _k in coming:
             self.class_warned[c.idx] = s.t
-        cls = first.class_name or "snellere klasse"
-        if len(coming) == 1:
-            return [(PRIO_RACE, f"{cls} komt eraan, {max(1, round(gap))} seconde. Laat ruimte.")]
-        return [(PRIO_RACE, f"{len(coming)} {cls}'s komen eraan, de eerste op {max(1, round(gap))} seconde. Laat ruimte.")]
+        sec = f"{max(1, round(gap))} seconde"
+        if kind == "klasse":
+            cls = first.class_name or "Snellere klasse"
+            n = sum(1 for x in coming if x[2] == "klasse")
+            if n > 1:
+                return [(PRIO_RACE, f"{n} auto's uit de {cls} komen eraan, de eerste op {sec}. Laat ruimte.")]
+            return [(PRIO_RACE, f"{cls} komt eraan, {sec}. Laat ruimte.")]
+        if kind == "ronde":
+            return [(PRIO_RACE, f"{first.name or 'Een auto'} zet je op een ronde, {sec} achter je. Laat hem netjes gaan.")]
+        if race:
+            return [(PRIO_RACE, f"{first.name or 'Een auto'} komt snel dichterbij, {sec} achter je.")]
+        return [(PRIO_RACE, f"Snelle auto achter je, {sec}. Blijf op je lijn of laat hem gaan.")]
 
     # ------------------------------------------------------------
     #  Vlaggen en safety car

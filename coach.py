@@ -55,12 +55,14 @@ class Lap:
 
 
 class Corner:
-    def __init__(self, nr, brake_bin, apex_bin, exit_bin, throttle_bin):
+    def __init__(self, nr, brake_bin, apex_bin, exit_bin, throttle_bin, flat=False, start_bin=None):
         self.nr = nr
         self.brake_bin = brake_bin
         self.apex_bin = apex_bin
         self.exit_bin = exit_bin
         self.throttle_bin = throttle_bin
+        self.flat = flat                      # gaat zonder remmen
+        self.start_bin = brake_bin if start_bin is None else start_bin   # waar de bocht begint
 
 
 class Coach:
@@ -86,12 +88,19 @@ class Coach:
         self.new_track = False
         self.guide_laps = 0
         self.guided = set()
+        self.map = None             # trackmap.TrackMap (gezet door de motor)
+        self.map_version = 0
+        self.map_announce = None
 
     # ------------------------------------------------------------
     def _setup(self):
         self.nbins = max(50, int(self.s.track_len_m / BIN_M))
         self.key = f"{_slug(self.s.track_name)}__{_slug(self.s.car_name)}"
+        if self.map is not None:
+            self.map.setup(self.s.track_name, self.nbins)
         self._load_ref()
+        if self.map is not None and self.map.ready and not self.corners and self.ext is not None:
+            self._corners_from_ext()
 
     def _ref_path(self):
         return os.path.join(self.data_dir, self.key + ".json")
@@ -130,9 +139,61 @@ class Coach:
     def use_ext(self):
         return self.ext is not None and (self.ref_time is None or self.ext.lap_time < self.ref_time - 0.05)
 
+    # ------------------------------------------------------------
+    #  Bochten uit de bochtenkaart (alle echte bochten, ook vol gas)
+    # ------------------------------------------------------------
+    def _corners_from_map(self, r, has_pedals):
+        n = self.nbins
+        out = []
+        for mc in self.map.corners:
+            a, top, e = mc["start"], mc["top"], mc["eind"]
+            vs = [(r.v[i] if r.v[i] is not None else 999, i) for i in range(a, e + 1)]
+            apex = min(vs)[1] if vs else top
+            lo = max(0, a - int(300 / BIN_M))
+            brake_bin, flat = a, True
+            if has_pedals:
+                braked = [i for i in range(lo, apex + 1) if (r.brake[i] or 0) > 0.15]
+                if braked and braked[-1] >= a - int(40 / BIN_M):
+                    j = braked[-1]
+                    while j - 1 >= lo and (r.brake[j - 1] or 0) > 0.05:
+                        j -= 1
+                    brake_bin, flat = j, False
+                thr = next((i for i in range(apex, min(n - 1, e + int(60 / BIN_M)) + 1) if (r.thr[i] or 0) >= 0.5), apex)
+            else:
+                pk = max(range(lo, apex + 1), key=lambda i: r.v[i] or 0)
+                if (r.v[pk] or 0) - (r.v[apex] or 0) >= 10:
+                    vpk = r.v[pk]
+                    j = pk
+                    while j + 1 < apex and (r.v[j + 1] or 0) >= vpk - 2:
+                        j += 1
+                    brake_bin, flat = j, False
+                vmin = r.v[apex] or 0
+                thr = next((i for i in range(apex, min(n - 1, e + int(60 / BIN_M)) + 1) if (r.v[i] or 0) > vmin + 3), apex)
+            exit_bin = min(n - 1, max(e, thr) + int(40 / BIN_M))
+            out.append(Corner(mc["nr"], brake_bin, apex, exit_bin, thr, flat=flat, start_bin=a))
+        self.corners = out
+
+    def map_ready(self):
+        return self.map is not None and self.map.ready and self.nbins is not None
+
+    def on_map_ready(self):
+        """De bochtenkaart is net gemaakt: bochten opnieuw indelen."""
+        if self.ref is not None:
+            self._find_corners()
+        elif self.ext is not None:
+            self._corners_from_ext()
+        self.map_version += 1
+        n_flat = sum(1 for c in self.corners if c.flat)
+        extra = f", waarvan {n_flat} zonder remmen" if n_flat else ""
+        return [(4, f"Ik heb de baan in kaart: {len(self.map.corners)} bochten{extra}. Vanaf nu gebruik ik die nummers.")]
+
     def _corners_from_ext(self):
         from reference import corner_metrics, corners_from_speed
         e = self.ext
+        if self.map_ready():
+            self._corners_from_map(e, has_pedals=False)
+            self.corners_from_ext = True
+            return
         out = []
         for k, apex in enumerate(corners_from_speed(e.v)):
             m = corner_metrics(e.v, e.gear, apex, max(0, apex - int(250 / BIN_M)), min(e.n - 1, apex + int(200 / BIN_M)))
@@ -153,6 +214,10 @@ class Coach:
     def _find_corners(self):
         r = self.ref
         n = r.n
+        if self.map_ready():
+            self._corners_from_map(r, has_pedals=True)
+            self.corners_from_ext = False
+            return
         zones = []
         i = 0
         while i < n:
@@ -236,6 +301,8 @@ class Coach:
         g = src["Gear"]
         if g is not None and g > 0:
             self.cur.gear[b] = g if self.cur.gear[b] is None else min(self.cur.gear[b], g)
+        if self.map is not None:
+            self.map.record(lap_nr, dist, src["Speed"], src["YawRate"], not me.on_pit)
         out = intro + self._guide(dist, src["Speed"] or 0)
         if me.lap_dirty:
             return out
@@ -259,7 +326,7 @@ class Coach:
         for c in self.corners:
             if c.nr in self.guided:
                 continue
-            bd = c.brake_bin * BIN_M
+            bd = (c.start_bin if c.flat else c.brake_bin) * BIN_M
             to_go = (bd - dist) % (self.nbins * BIN_M)
             if lead - 40 <= to_go <= lead:
                 self.guided.add(c.nr)
@@ -268,6 +335,11 @@ class Coach:
 
     def _corner_brief(self, c):
         r = self.ref if self.ref is not None and not self.use_ext() else self.ext
+        if c.flat:
+            lift = r is self.ref and min((r.thr[i] or 0) for i in range(c.start_bin, c.apex_bin + 1)) < 0.85
+            vmin = r.v[c.apex_bin]
+            txt = f"Bocht {c.nr}, " + ("even van het gas" if lift else "vol gas")
+            return txt + (f", {round(vmin / 5) * 5} in de top." if vmin else ".")
         if r is self.ext:
             drop = (r.v[c.brake_bin] or 0) - (r.v[c.apex_bin] or 0)
             rem = "hard remmen" if drop > 80 else ("remmen" if drop > 30 else "licht remmen")
@@ -296,8 +368,8 @@ class Coach:
             self.reported.add(c.nr)
             tip = self._analyse(c)
             focus = getattr(self, "focus_corner", None)
-            if focus and c.nr != focus:
-                tip = None   # lesplan: alleen de bocht waar we aan werken
+            if focus and c.nr != focus and tip and abs(self.corner_deltas.get(c.nr, 0)) < 0.2:
+                tip = None   # lesplan: andere bochten alleen als er echt veel tijd ligt
             if tip and not self.guide_active():   # tijdens de baan-uitleg niet ook nog tips
                 tips.append(tip)
         return tips
@@ -334,7 +406,18 @@ class Coach:
         sec = f"{abs(loss):.2f}".replace(".", ",")
         name = f"Bocht {c.nr}"
         txt = None
-        if loss >= thresh:
+        if loss >= thresh and c.flat:
+            lift_cur = min((cur.thr[i] or 0) for i in range(c.start_bin, c.apex_bin + 1))
+            lift_ref = min((ref.thr[i] or 0) for i in range(c.start_bin, c.apex_bin + 1))
+            if cb is not None and (ref.brake[cb] or 0) < 0.05:
+                txt = f"{name} kan zonder remmen. Je remde, {sec} verloren."
+            elif lift_cur < lift_ref - 0.25:
+                txt = f"{name}: je ging meer van het gas dan in je beste ronde, {sec} verloren."
+            elif dv <= -3:
+                txt = f"{name}: {abs(dv):.0f} kilometer per uur langzamer door de bocht, {sec} verloren."
+            else:
+                txt = f"{name}: {sec} verloren op je beste ronde."
+        elif loss >= thresh:
             if brake_diff_m is not None and brake_diff_m <= -10:
                 txt = f"{name}: {abs(int(brake_diff_m))} meter te vroeg geremd, {sec} verloren. Rem later."
             elif brake_diff_m is not None and brake_diff_m >= 10 and dv < -2:
@@ -362,7 +445,8 @@ class Coach:
             return None
         loss = (cur.t[end] - cur.t[start]) - (ext.t[end] - ext.t[start])
         self.corner_deltas[c.nr] = loss
-        lo, hi = max(0, c.brake_bin - int(150 / BIN_M)), min(cur.n - 1, end)
+        lo = c.start_bin if c.flat else max(0, c.brake_bin - int(150 / BIN_M))
+        hi = min(cur.n - 1, end)
         from reference import speed_profile
         mine = corner_metrics(speed_profile(cur.t), cur.gear, c.apex_bin, lo, hi)
         theirs = corner_metrics(ext.v, ext.gear, c.apex_bin, lo, hi)
@@ -379,6 +463,8 @@ class Coach:
         bd = (mine["brake"] - theirs["brake"]) * BIN_M          # negatief = jij remt eerder
         dv = mine["vmin"] - theirs["vmin"]
         ad = (mine["accel"] - theirs["accel"]) * BIN_M          # positief = jij later op snelheid
+        if c.flat:
+            bd = 0   # vol-gas-bocht: geen rempunt om te vergelijken
         if bd <= -10:
             parts.append(f"de snelste remt {int(abs(bd))} meter later")
         elif bd >= 10 and dv < -2:
@@ -421,6 +507,8 @@ class Coach:
             self.last_lap_deltas = dict(self.corner_deltas)
         if (self.ref is not None or self.ext is not None) and self.cur is not None:
             self.guide_laps += 1
+        if self.map is not None and self.map.lap_done(clean and self.cur is not None and self.cur.coverage() > 0.9):
+            msgs += self.on_map_ready()
         if self.cur is not None and self.cur.coverage() > 0.9:
             snap = self.cur.copy()
             snap.fill_gaps()

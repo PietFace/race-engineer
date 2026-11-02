@@ -34,7 +34,8 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
 
 - **Pitstop klaarzetten**: zodra het pitvenster open is zet hij de juiste hoeveelheid brandstof en de banden klaar
   in iRacing. Na zwaar contact (4x) zet hij fast repair klaar.
-- **Andere klassen**: "GTP komt eraan, 3 seconde. Laat ruimte."
+- **Sneller verkeer** (in elke sessie): "GTP komt eraan, 3 seconde. Laat ruimte.", "Jansen zet je op een ronde",
+  "Bos komt snel dichterbij, 2 seconde achter je" en in training "Snelle auto achter je".
 - **Vlaggen en safety car**: gele, blauwe en zwarte vlag; bij een safety car advies of je moet stoppen, en
   "Pits zijn open. Box, box deze ronde."
 - **Tegenstanders**: iRating, licentie en waarschuwing als iemand al veel incidenten heeft.
@@ -43,6 +44,12 @@ Met **Testrace** en **Testtraining** probeer je alles uit zonder iRacing.
   niet per sector.)
 
 ## Training
+
+- **Bochtenkaart**: na je eerste schone ronde op een baan meet hij alle echte bochten, ook de bochten die vol gas
+  gaan (een chicane telt als twee bochten). De nummers horen bij de baan, dus ze zijn in elke auto hetzelfde.
+  Voor een vol-gas-bocht hoor je bijvoorbeeld "Bocht 12 kan zonder remmen. Je remde, 0,30 verloren."
+- **Nabespreking na een training**: zodra je uit de auto stapt (na minstens 3 ronden) hoor je wat goed ging,
+  waar je tijd liet liggen en je huiswerk.
 
 - **Referentie-bibliotheek**: in elke sessie meet hij alle auto's en bewaart per auto en baan de snelste geldige ronde
   op je pc (ook van auto's die je die dag niet zelf rijdt). Daarna coacht hij je tegen die ronde:
@@ -100,4 +107,5 @@ Zonder sleutel werkt al het andere ook.
 - De coaching begint na je eerste schone ronde en onthoudt je beste ronde per baan + auto.
 - Werken de sneltoetsen niet terwijl iRacing op de voorgrond staat? Start het programma dan als administrator.
 - Logs en nabesprekingen: Instellingen → *Open map met logs*.
-- Bijwerken naar een nieuwe versie: nieuwe zip uitpakken en opnieuw installeren.bat. Je instellingen blijven bewaard.
+- Bijwerken: klik in het programma op *Update beschikbaar*. Hij downloadt en installeert de nieuwe versie zelf
+  en start daarna opnieuw op. Je instellingen blijven bewaard.
