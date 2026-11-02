@@ -179,7 +179,7 @@ class Overlay(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self._apply_flags()
         geo = (mgr.cfg.get("vensters") or {}).get(self.NAME)
-        self.scale = max(0.5, min(3.0, geo[2])) if geo else 1.0
+        self.scale = max(0.3, min(3.0, geo[2])) if geo else float((mgr.cfg.get("schaal") or {}).get(self.NAME, 1.0))
         self._size = None
         self._fit()
         x, y = (geo[0], geo[1]) if geo else self.default_pos()
@@ -251,7 +251,7 @@ class Overlay(QWidget):
         elif self._resize is not None:
             start, sc = self._resize
             dx = e.globalPosition().x() - start.x()
-            self.scale = max(0.5, min(3.0, sc + dx / self.base()[0]))
+            self.scale = max(0.3, min(3.0, sc + dx / self.base()[0]))
             self._size = None
             self._fit()
             self.update()
@@ -884,6 +884,32 @@ class OverlayManager:
             w._fit()
             w.update()
 
+    def set_scale(self, name, scale):
+        """Grootte van één overlay (1.0 = normaal)."""
+        w = self.windows.get(name)
+        v = self.cfg.setdefault("vensters", {})
+        old = v.get(name)
+        if w is not None:
+            w.scale = scale
+            w._size = None
+            w._fit()
+            w.update()
+            v[name] = [w.x(), w.y(), round(scale, 3)]
+        elif old:
+            v[name] = [old[0], old[1], round(scale, 3)]
+        else:
+            v[name] = None
+            del v[name]
+            self.cfg.setdefault("schaal", {})[name] = round(scale, 3)
+        self.win.save_cfg(self.win.cfg)
+
+    def get_scale(self, name):
+        w = self.windows.get(name)
+        if w is not None:
+            return w.scale
+        g = (self.cfg.get("vensters") or {}).get(name)
+        return g[2] if g else (self.cfg.get("schaal") or {}).get(name, 1.0)
+
     def set_edit(self, on):
         self.editing = on
         for w in self.windows.values():
@@ -956,6 +982,24 @@ class OptionsDialog(QDialog):
         inner.setObjectName("page")
         v = QVBoxLayout(inner)
         cur = (mgr.cfg.get("opties") or {}).get(cls.NAME) or {}
+        lab0 = QLabel("GROOTTE")
+        lab0.setObjectName("cap")
+        v.addWidget(lab0)
+        hs = QHBoxLayout()
+        sl = QSlider(Qt.Horizontal)
+        sl.setRange(30, 200)
+        sl.setValue(int(round(mgr.get_scale(cls.NAME) * 100)))
+        pct = QLabel(f"{sl.value()}%")
+        pct.setMinimumWidth(44)
+
+        def on_scale(val):
+            pct.setText(f"{val}%")
+            mgr.set_scale(cls.NAME, val / 100)
+        sl.valueChanged.connect(on_scale)
+        hs.addWidget(sl, 1)
+        hs.addWidget(pct)
+        v.addLayout(hs)
+        v.addSpacing(8)
         groups = {}
         for spec in cls.OPTIONS:
             groups.setdefault(spec["group"], []).append(spec)
@@ -1081,6 +1125,17 @@ class OverlayPage(QWidget):
         self.op.valueChanged.connect(self._changed)
         h.addWidget(self.op, 1)
         v.addLayout(h)
+        h2 = QHBoxLayout()
+        h2.addWidget(lab("Alle overlays even groot maken", "sub"))
+        self.all_size = QSlider(Qt.Horizontal)
+        self.all_size.setRange(30, 200)
+        self.all_size.setValue(100)
+        self.all_pct = lab("100%", "sub")
+        self.all_size.sliderReleased.connect(self._all_size)
+        self.all_size.valueChanged.connect(lambda x: self.all_pct.setText(f"{x}%"))
+        h2.addWidget(self.all_size, 1)
+        h2.addWidget(self.all_pct)
+        v.addLayout(h2)
         self.only_car = QCheckBox("Alleen laten zien als ik in de auto zit")
         self.only_car.toggled.connect(self._changed)
         v.addWidget(self.only_car)
@@ -1109,6 +1164,10 @@ class OverlayPage(QWidget):
         o["alleen_in_auto"] = self.only_car.isChecked()
         self.win.save_cfg(self.win.cfg)
         self.win.overlays.apply()
+
+    def _all_size(self):
+        for cls in ALL:
+            self.win.overlays.set_scale(cls.NAME, self.all_size.value() / 100)
 
     def _edit(self, on):
         self.edit_btn.setText("Klaar met verplaatsen" if on else "Overlays verplaatsen")
